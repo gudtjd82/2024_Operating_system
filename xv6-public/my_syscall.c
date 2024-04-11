@@ -13,7 +13,7 @@ sys_myfunction(void)
 {
     char *str;
 
-    if(argint(0, &str) < 0)
+    if(argstr(0, &str) < 0)
         return -1;
     
     return myfunction(str);

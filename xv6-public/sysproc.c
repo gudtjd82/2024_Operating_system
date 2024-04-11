@@ -98,3 +98,10 @@ sys_getgpid(void)
     gp = myproc()->parent->parent;
     return gp->pid;
 }
+
+void
+sys_yield(void)
+{
+  yield();
+  return 0;
+}
