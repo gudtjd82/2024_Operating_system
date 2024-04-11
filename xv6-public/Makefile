@@ -30,7 +30,7 @@ OBJS = \
 	my_syscall.o\
 
 # Cross-compiling (e.g., on Mac OS X)
-ifeq ($(shell uname), Darwin) # it only works when in OSX!
+ifeq ($(shell uname), Darwin) # it only works when in OSX!ds
 TOOLPREFIX = x86_64-elf-
 QEMU = /opt/homebrew/bin/qemu-system-i386
 CC = x86_64-elf-gcc
