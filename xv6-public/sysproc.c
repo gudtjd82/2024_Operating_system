@@ -103,7 +103,6 @@ void
 sys_yield(void)
 {
   yield();
-  return 0;
 }
 
 int
