@@ -1,0 +1,8 @@
+<Example>
+
+This is the first vim example file.
+We can write files by typing [i] from command mode.
+[i] means insert.
+We can return mode by typing [esc].
+We can save and close vim by typing [:wq]
+[w] means write and [q] means quit.
