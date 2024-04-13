@@ -79,14 +79,23 @@ QEMU = $(shell if which qemu > /dev/null; \
 	echo "***" 1>&2; exit 1)
 endif
 
+ifndef SCHED_POLICY
+SCHED_POLICY := DEFAULT
+# SCHED_POLICY := MLFQ_SCHED
+endif
+
+ifndef TEST_NUM
+TEST_NUM = 1
+endif
+
 ifndef CC
-CC = x86_64-elf-gcc
+CC = $(TOOLPREFIX)gcc
 endif
 
 AS = $(TOOLPREFIX)gas
 
 ifndef LD
-LD = x86_64-elf-ld
+LD = $(TOOLPREFIX)ld
 endif
 
 OBJCOPY = $(TOOLPREFIX)objcopy
@@ -95,6 +104,8 @@ OBJDUMP = $(TOOLPREFIX)objdump
 ifndef CFLAGS
 CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -Wno-error=stringop-overflow=0
 endif
+
+CFLAGS += -D$(SCHED_POLICY) -DTEST_NUM=$(TEST_NUM)
 
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
@@ -210,6 +221,7 @@ UPROGS=\
 	_my_test\
 	_lab03\
 	_lab04\
+	_mlfq_test\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -246,7 +258,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
 ifndef CPUS
-CPUS := 2
+CPUS := 1
 endif
 QEMUOPTS = -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512 $(QEMUEXTRA)
 
@@ -279,7 +291,7 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 EXTRA=\
 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
-	printf.c umalloc.c my_userapp.c project01.c my_test.c lab03.c lab04.c\
+	printf.c umalloc.c my_userapp.c project01.c my_test.c lab03.c lab04.c mlfq_test.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\
 

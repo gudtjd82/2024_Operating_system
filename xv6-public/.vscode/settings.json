@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "param.h": "c",
-        "cstdio": "c"
+        "cstdio": "c",
+        "traps.h": "c"
     }
 }

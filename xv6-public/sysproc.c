@@ -105,3 +105,9 @@ sys_yield(void)
   yield();
   return 0;
 }
+
+int
+sys_getlev(void)
+{
+  return getlev();
+}

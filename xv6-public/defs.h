@@ -191,3 +191,11 @@ void            clearpteu(pde_t *pgdir, char *uva);
 
 // my_syscall.c
 int             myfunction(char*);
+
+// pj2
+// proc.c
+void            priority_boost(void);
+int             getlev(void);
+int             setpriority(int, int);
+int             setmonopoly(int, int);
+void            monopolize(void);

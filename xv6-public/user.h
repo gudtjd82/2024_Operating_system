@@ -24,6 +24,15 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int yield(void);
+// my_syscall.c
+int myfunction(char*);
+// project01 - getgpid()
+int getgpid(void);
+// pj2
+int getlev(void);
+int setpriority(int, int);
+int setmonopoly(int, int);
+void monopolize(void);
 
 // ulib.c
 int stat(const char*, struct stat*);
@@ -39,8 +48,6 @@ void* malloc(uint);
 void free(void*);
 int atoi(const char*);
 
-// my_syscall.c
-int myfunction(char*);
 
-// project01 - getgpid()
-int getgpid(void);
+
+

@@ -10,6 +10,9 @@
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+
+  // pj2
+  int MoQ_sz;   // num of proc in MoQ
 } ptable;
 
 static struct proc *initproc;
@@ -88,6 +91,10 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  // pj2
+  p->qlev = L0;
+  p->tick = 0;
+  p->priority = 0;
 
   release(&ptable.lock);
 
@@ -332,6 +339,8 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+
+#ifdef DEFAULT
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
@@ -350,8 +359,47 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-    release(&ptable.lock);
+    // pj2
+#elif MLFQ_SCHED
+    // ptable을 전부 돌며 schdeule 될 process를 고름
+    // Queue level이 가장 높은 process를 scheduling
+    struct proc *scheculed_proc = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
 
+      // 이전에 scheduled proc가 존재하면,
+      if(scheculed_proc != 0)
+      {
+        if(scheculed_proc->qlev > p->qlev)
+        {
+          scheculed_proc = p;
+        }
+      }
+      else{ // 이전에 scheduled proc가 없음
+        scheculed_proc = p;
+      }
+    }
+
+    if(scheculed_proc != 0)
+    {
+      c->proc = scheculed_proc;
+      switchuvm(scheculed_proc);
+      scheculed_proc->state = RUNNING;
+
+      swtch(&(c->scheduler), scheculed_proc->context);
+      switchkvm();
+
+      c->proc = 0;
+    }
+    else
+    {
+      release(&ptable.lock);
+      priority_boost();
+      acquire(&ptable.lock);
+    }
+#endif
+    release(&ptable.lock);
   }
 }
 
@@ -531,4 +579,35 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+
+// Projec02 (pj2)
+
+// Priority Boosting
+void
+priority_boost(void)
+{
+  struct proc *p;
+
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    p->qlev = L0;
+
+    p->tick = 0;
+  }
+  release(&ptable.lock);
+}
+
+int
+getlev(void)
+{
+  pushcli();
+  struct proc *p = myproc();
+  popcli();
+
+  if(p->qlev == MoQ)
+    return 99;
+
+  return myproc()->qlev;
 }

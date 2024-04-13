@@ -13,6 +13,7 @@ struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
+uint tick_for_boost = 0;
 
 void
 tvinit(void)
@@ -111,7 +112,45 @@ trap(struct trapframe *tf)
   // If interrupts were on while locks held, would need to check nlock.
   if(myproc() && myproc()->state == RUNNING &&
      tf->trapno == T_IRQ0+IRQ_TIMER)
+  {
+// #ifdef DEFAULT
     yield();
+
+// #elif MLFQ_SCHED
+    myproc()->tick++;
+    tick_for_boost++;
+
+    if(tick_for_boost >= 100)
+    {
+      tick_for_boost = 0;
+
+    }
+
+    if(myproc()->qlev != MoQ && myproc()->tick >= (myproc()->qlev *2 + 2))
+    {
+      if(myproc()->qlev == L0)
+      {
+        if(myproc()->pid % 2 != 0)
+        {
+          myproc()->qlev = L1;
+          myproc()->tick = 0;
+        }
+        else
+        {
+          myproc()->qlev = L2;
+          myproc()->tick = 0;
+        }
+      }
+      else if(myproc()->qlev == L1 || myproc()->qlev == L2)
+      {
+        myproc()->qlev = L3;
+        myproc()->tick = 0;
+      }
+
+      yield();
+    }
+// #endif
+  }
 
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
