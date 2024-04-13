@@ -332,6 +332,8 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
+
+  int previous_qlev = 0;
   
   for(;;){
     // Enable interrupts on this processor.
@@ -340,54 +342,64 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
-#ifdef DEFAULT
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+// #ifdef DEFAULT
+    // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    //   if(p->state != RUNNABLE)
+    //     continue;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+    //   // Switch to chosen process.  It is the process's job
+    //   // to release ptable.lock and then reacquire it
+    //   // before jumping back to us.
+    //   c->proc = p;
+    //   switchuvm(p);
+    //   p->state = RUNNING;
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+    //   swtch(&(c->scheduler), p->context);
+    //   switchkvm();
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
-    }
+    //   // Process is done running for now.
+    //   // It should have changed its p->state before coming back.
+    //   c->proc = 0;
+    // }
     // pj2
-#elif MLFQ_SCHED
+// #elif MLFQ_SCHED
     // ptable을 전부 돌며 schdeule 될 process를 고름
     // Queue level이 가장 높은 process를 scheduling
-    struct proc *scheculed_proc = 0;
+    struct proc *scheduled_proc = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
 
       // 이전에 scheduled proc가 존재하면,
-      if(scheculed_proc != 0)
+      if(scheduled_proc != 0)
       {
-        if(scheculed_proc->qlev > p->qlev)
+        if(scheduled_proc->qlev > p->qlev)
         {
-          scheculed_proc = p;
+          scheduled_proc = p;
+        }
+        else if(scheduled_proc->qlev == L3 && p->qlev == L3)
+        {
+          if(scheduled_proc->priority < p->priority)
+            scheduled_proc = p;
         }
       }
       else{ // 이전에 scheduled proc가 없음
-        scheculed_proc = p;
+        scheduled_proc = p;
       }
     }
 
-    if(scheculed_proc != 0)
+    if(scheduled_proc != 0)
     {
-      c->proc = scheculed_proc;
-      switchuvm(scheculed_proc);
-      scheculed_proc->state = RUNNING;
+      if(previous_qlev != scheduled_proc->qlev)
+      {
+        previous_qlev = scheduled_proc->qlev;
+        cprintf("\nScheduled Queue: L%d\n", previous_qlev);
+      }
+      c->proc = scheduled_proc;
+      switchuvm(scheduled_proc);
+      scheduled_proc->state = RUNNING;
 
-      swtch(&(c->scheduler), scheculed_proc->context);
+      swtch(&(c->scheduler), scheduled_proc->context);
       switchkvm();
 
       c->proc = 0;
@@ -398,7 +410,7 @@ scheduler(void)
       priority_boost();
       acquire(&ptable.lock);
     }
-#endif
+// #endif
     release(&ptable.lock);
   }
 }

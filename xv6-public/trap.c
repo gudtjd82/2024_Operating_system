@@ -146,6 +146,12 @@ trap(struct trapframe *tf)
         myproc()->qlev = L3;
         myproc()->tick = 0;
       }
+      else if(myproc()->qlev == L3)
+      {
+        if(myproc()->priority > 0)
+          myproc()->priority--;
+        myproc()->tick = 0;
+      }
 
       yield();
     }
