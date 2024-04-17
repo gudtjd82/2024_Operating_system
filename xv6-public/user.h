@@ -33,6 +33,10 @@ int getlev(void);
 int setpriority(int, int);
 int setmonopoly(int, int);
 void monopolize(void);
+void addsub_L0(int);
+void addsub_L1(int);
+void addsub_L2(int);
+void addsub_L3(int);
 
 // ulib.c
 int stat(const char*, struct stat*);

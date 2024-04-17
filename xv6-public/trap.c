@@ -114,7 +114,7 @@ trap(struct trapframe *tf)
      tf->trapno == T_IRQ0+IRQ_TIMER)
   {
 // #ifdef DEFAULT
-    yield();
+    // yield();
 
 // #elif MLFQ_SCHED
     myproc()->tick++;
@@ -123,7 +123,7 @@ trap(struct trapframe *tf)
     if(tick_for_boost >= 100)
     {
       tick_for_boost = 0;
-
+      priority_boost();
     }
 
     if(myproc()->qlev != MoQ && myproc()->tick >= (myproc()->qlev *2 + 2))
@@ -132,18 +132,35 @@ trap(struct trapframe *tf)
       {
         if(myproc()->pid % 2 != 0)
         {
+          addsub_L0(-1);
           myproc()->qlev = L1;
+          myproc()->seq = get_L1_cnt();
+          addsub_L1(1);
           myproc()->tick = 0;
         }
         else
         {
+          addsub_L0(-1);
           myproc()->qlev = L2;
+          myproc()->seq = get_L2_cnt();
+          addsub_L2(1);
           myproc()->tick = 0;
         }
       }
-      else if(myproc()->qlev == L1 || myproc()->qlev == L2)
+      else if(myproc()->qlev == L1)
       {
+        addsub_L1(-1);
         myproc()->qlev = L3;
+        myproc()->seq = get_L3_cnt();
+        addsub_L3(1);
+        myproc()->tick = 0;
+      }
+      else if(myproc()->qlev == L2)
+      {
+        addsub_L2(-1);
+        myproc()->qlev = L3;
+        myproc()->seq = get_L3_cnt();
+        addsub_L3(1);
         myproc()->tick = 0;
       }
       else if(myproc()->qlev == L3)

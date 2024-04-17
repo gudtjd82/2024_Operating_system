@@ -52,6 +52,7 @@ struct proc {
   char name[16];               // Process name (debugging)
 
   enum procQueue qlev;        // Queue lev
+  int seq;                    // sequence in the queue
   int tick;                    // time quantum 
   int priority;                // priority for L3 queue
 };

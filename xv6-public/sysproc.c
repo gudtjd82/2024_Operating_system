@@ -99,6 +99,7 @@ sys_getgpid(void)
     return gp->pid;
 }
 
+// pj2
 void
 sys_yield(void)
 {
@@ -109,4 +110,17 @@ int
 sys_getlev(void)
 {
   return getlev();
+}
+
+int sys_setpriority(void)
+{
+  int pid, priority;
+
+  if(argint(0, &pid) < 0)
+    return -3;
+
+  if(argint(1, &priority) < 0)
+    return -4;
+  
+  return setpriority(pid, priority);
 }

@@ -10,6 +10,11 @@
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+  
+  int L0_cnt;
+  int L1_cnt;
+  int L2_cnt;
+  int L3_cnt;
 
   // pj2
   int MoQ_sz;   // num of proc in MoQ
@@ -27,6 +32,11 @@ void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
+  ptable.L0_cnt = 0;
+  ptable.L1_cnt = 0;
+  ptable.L2_cnt = 0;
+  ptable.L3_cnt = 0;
+  ptable.MoQ_sz = 0;
 }
 
 // Must be called with interrupts disabled
@@ -93,6 +103,7 @@ found:
   p->pid = nextpid++;
   // pj2
   p->qlev = L0;
+  p->seq = ptable.L0_cnt++;
   p->tick = 0;
   p->priority = 0;
 
@@ -342,27 +353,7 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
-// #ifdef DEFAULT
-    // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    //   if(p->state != RUNNABLE)
-    //     continue;
-
-    //   // Switch to chosen process.  It is the process's job
-    //   // to release ptable.lock and then reacquire it
-    //   // before jumping back to us.
-    //   c->proc = p;
-    //   switchuvm(p);
-    //   p->state = RUNNING;
-
-    //   swtch(&(c->scheduler), p->context);
-    //   switchkvm();
-
-    //   // Process is done running for now.
-    //   // It should have changed its p->state before coming back.
-    //   c->proc = 0;
-    // }
-    // pj2
-// #elif MLFQ_SCHED
+// #ifdef MLFQ_SCHED
     // ptable을 전부 돌며 schdeule 될 process를 고름
     // Queue level이 가장 높은 process를 scheduling
     struct proc *scheduled_proc = 0;
@@ -377,10 +368,23 @@ scheduler(void)
         {
           scheduled_proc = p;
         }
-        else if(scheduled_proc->qlev == L3 && p->qlev == L3)
+        else if(scheduled_proc->qlev == p->qlev)
         {
-          if(scheduled_proc->priority < p->priority)
-            scheduled_proc = p;
+          if(scheduled_proc->qlev == L3)
+          {
+            if(scheduled_proc->priority < p->priority)
+              scheduled_proc = p;
+            else if(scheduled_proc->priority == p->priority)
+            {
+              if(scheduled_proc->seq > p->seq)
+                scheduled_proc = p;
+            }
+          }
+          else
+          {
+            if(scheduled_proc->seq > p->seq)
+              scheduled_proc = p;
+          }
         }
       }
       else{ // 이전에 scheduled proc가 없음
@@ -390,11 +394,17 @@ scheduler(void)
 
     if(scheduled_proc != 0)
     {
+      // debugging
       if(previous_qlev != scheduled_proc->qlev)
       {
         previous_qlev = scheduled_proc->qlev;
-        cprintf("\nScheduled Queue: L%d\n", previous_qlev);
+        // cprintf("\nScheduled Queue: L%d\n", previous_qlev);
       }
+      if(scheduled_proc->qlev == L3)
+      {
+        // cprintf("\nScheduled priority: %d\n", scheduled_proc->priority);
+      }
+
       c->proc = scheduled_proc;
       switchuvm(scheduled_proc);
       scheduled_proc->state = RUNNING;
@@ -604,7 +614,16 @@ priority_boost(void)
 
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    
+    if(p->qlev == L1)
+      ptable.L1_cnt--;
+    else if(p->qlev == L2)
+      ptable.L2_cnt--;
+    else if(p->qlev == L3)
+      ptable.L3_cnt--;
+
     p->qlev = L0;
+    ptable.L0_cnt++;
 
     p->tick = 0;
   }
@@ -622,4 +641,92 @@ getlev(void)
     return 99;
 
   return myproc()->qlev;
+}
+
+int
+setpriority(int pid, int priority)
+{
+  struct proc *p;
+
+  if(priority <0 || priority > 10)
+    return -2;
+
+  acquire(&ptable.lock);
+  struct proc *target_proc = 0;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid)
+    {
+      target_proc = p;
+      break;
+    }
+  }
+  release(&ptable.lock);
+
+  if(target_proc == 0)
+    return -1;
+  
+  target_proc->priority = priority;
+  return 0;
+}
+
+// int 
+// setmonopoly(int pid, int password)
+// {
+
+// }
+
+// void 
+// monopolize(void)
+// {
+  
+// }
+
+void
+addsub_L0(int i)
+{
+  acquire(&ptable.lock);
+  ptable.L0_cnt += i;
+  release(&ptable.lock);
+}
+void
+addsub_L1(int i)
+{
+  acquire(&ptable.lock);
+  ptable.L1_cnt += i;
+  release(&ptable.lock);
+}
+void
+addsub_L2(int i)
+{
+  acquire(&ptable.lock);
+  ptable.L2_cnt += i;
+  release(&ptable.lock);
+}
+void
+addsub_L3(int i)
+{
+  acquire(&ptable.lock);
+  ptable.L3_cnt += i;
+  release(&ptable.lock);
+}
+
+int
+get_L0_cnt(void)
+{
+  return ptable.L0_cnt;
+}
+int
+get_L1_cnt(void)
+{
+  return ptable.L1_cnt;
+}
+int
+get_L2_cnt(void)
+{
+  return ptable.L2_cnt;
+}
+int
+get_L3_cnt(void)
+{
+  return ptable.L3_cnt;
 }
