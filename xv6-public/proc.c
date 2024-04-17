@@ -368,6 +368,7 @@ scheduler(void)
     acquire(&ptable.lock);
 
 // #ifdef MLFQ_SCHED
+    // pj2
     // ptable을 전부 돌며 schdeule 될 process를 고름
     // Queue level이 가장 높은 process를 scheduling
     struct proc *scheduled_proc = 0;
