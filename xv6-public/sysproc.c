@@ -100,10 +100,11 @@ sys_getgpid(void)
 }
 
 // pj2
-void
+int
 sys_yield(void)
 {
   yield();
+  return 0;
 }
 
 int
@@ -123,4 +124,32 @@ int sys_setpriority(void)
     return -4;
   
   return setpriority(pid, priority);
+}
+
+int 
+sys_setmonopoly(void)
+{
+  int pid, password;
+
+  if(argint(0, &pid) < 0)
+    return -5;
+
+  if(argint(1, &password) < 0)
+    return -6;
+
+  return setmonopoly(pid, password);
+}
+
+int
+sys_monopolize(void)
+{
+  monopolize();
+  return 0;
+}
+
+int
+sys_unmonopolize(void)
+{
+  unmonopolize();
+  return 0;
 }

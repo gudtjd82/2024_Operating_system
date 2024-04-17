@@ -11,18 +11,24 @@ struct {
   struct spinlock lock;
   struct proc proc[NPROC];
   
+
+  // pj2
+  int MoQ_activate;
+  int MoQ_sz;   // num of proc in MoQ
+
   int L0_cnt;
   int L1_cnt;
   int L2_cnt;
   int L3_cnt;
 
-  // pj2
-  int MoQ_sz;   // num of proc in MoQ
 } ptable;
 
 static struct proc *initproc;
 
 int nextpid = 1;
+// pj2
+extern uint global_tick;
+
 extern void forkret(void);
 extern void trapret(void);
 
@@ -32,11 +38,13 @@ void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
+  // pj2
+  ptable.MoQ_sz = 0;
+  ptable.MoQ_activate = 0;
   ptable.L0_cnt = 0;
   ptable.L1_cnt = 0;
   ptable.L2_cnt = 0;
   ptable.L3_cnt = 0;
-  ptable.MoQ_sz = 0;
 }
 
 // Must be called with interrupts disabled
@@ -281,6 +289,12 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
+  // pj2
+  addsub_LevCnt(curproc->qlev, -1);
+  curproc->seq = -1;
+  curproc->qlev = -1;
+  curproc->tick = -1;
+  curproc->priority = -1;
   sched();
   panic("zombie exit");
 }
@@ -357,40 +371,69 @@ scheduler(void)
     // ptable을 전부 돌며 schdeule 될 process를 고름
     // Queue level이 가장 높은 process를 scheduling
     struct proc *scheduled_proc = 0;
+    struct proc *MoQ_proc = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
-
-      // 이전에 scheduled proc가 존재하면,
-      if(scheduled_proc != 0)
+      
+      if(ptable.MoQ_activate)
       {
-        if(scheduled_proc->qlev > p->qlev)
+        if(p->qlev == MoQ)
         {
-          scheduled_proc = p;
-        }
-        else if(scheduled_proc->qlev == p->qlev)
-        {
-          if(scheduled_proc->qlev == L3)
+          if(MoQ_proc != 0)
           {
-            if(scheduled_proc->priority < p->priority)
-              scheduled_proc = p;
-            else if(scheduled_proc->priority == p->priority)
+            if(MoQ_proc->seq > p->seq)
+              MoQ_proc = p;
+          }
+          else
+            MoQ_proc = p;
+        }
+      }
+      else  // MoQ 비활성화 상태
+      {
+        // 이전에 scheduled proc가 존재하면,
+        if(scheduled_proc != 0)
+        {
+          if(scheduled_proc->qlev > p->qlev)
+          {
+            scheduled_proc = p;
+          }
+          else if(scheduled_proc->qlev == p->qlev)
+          {
+            if(scheduled_proc->qlev == L3)
+            {
+              if(scheduled_proc->priority < p->priority)
+                scheduled_proc = p;
+              else if(scheduled_proc->priority == p->priority)
+              {
+                if(scheduled_proc->seq > p->seq)
+                  scheduled_proc = p;
+              }
+            }
+            else
             {
               if(scheduled_proc->seq > p->seq)
                 scheduled_proc = p;
             }
           }
-          else
-          {
-            if(scheduled_proc->seq > p->seq)
-              scheduled_proc = p;
-          }
+        }
+        else{ // 이전에 scheduled proc가 없음
+          scheduled_proc = p;
         }
       }
-      else{ // 이전에 scheduled proc가 없음
-        scheduled_proc = p;
-      }
     }
+
+    if(ptable.MoQ_activate)
+    {
+      if (MoQ_proc != 0)
+      {
+        scheduled_proc = MoQ_proc;
+      }
+      else
+        unmonopolize();
+    }
+    
+
 
     if(scheduled_proc != 0)
     {
@@ -414,12 +457,12 @@ scheduler(void)
 
       c->proc = 0;
     }
-    else
-    {
-      release(&ptable.lock);
-      priority_boost();
-      acquire(&ptable.lock);
-    }
+    // else
+    // {
+    //   release(&ptable.lock);
+    //   priority_boost();
+    //   acquire(&ptable.lock);
+    // }
 // #endif
     release(&ptable.lock);
   }
@@ -669,64 +712,88 @@ setpriority(int pid, int priority)
   return 0;
 }
 
-// int 
-// setmonopoly(int pid, int password)
-// {
+int 
+setmonopoly(int pid, int password)
+{
+  struct proc *p;
 
-// }
+  if(password != 2021042842)
+    return -2;
 
-// void 
-// monopolize(void)
-// {
+  acquire(&ptable.lock);
+  struct proc *target_proc = 0;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid)
+    {
+      target_proc = p;
+
+      if(target_proc->qlev == MoQ)
+        return -3;
+      
+      if(myproc()->pid == target_proc->pid)
+        return -4;
+      
+      p->qlev = MoQ;
+      p->seq = ptable.MoQ_sz++;
+    }
+  }
+  release(&ptable.lock);
+
+  if(target_proc == 0)
+    return -1;
   
-// }
-
-void
-addsub_L0(int i)
-{
-  acquire(&ptable.lock);
-  ptable.L0_cnt += i;
-  release(&ptable.lock);
-}
-void
-addsub_L1(int i)
-{
-  acquire(&ptable.lock);
-  ptable.L1_cnt += i;
-  release(&ptable.lock);
-}
-void
-addsub_L2(int i)
-{
-  acquire(&ptable.lock);
-  ptable.L2_cnt += i;
-  release(&ptable.lock);
-}
-void
-addsub_L3(int i)
-{
-  acquire(&ptable.lock);
-  ptable.L3_cnt += i;
-  release(&ptable.lock);
+  return ptable.MoQ_sz;
 }
 
-int
-get_L0_cnt(void)
+void 
+monopolize(void)
 {
-  return ptable.L0_cnt;
+  ptable.MoQ_activate = 1;
 }
-int
-get_L1_cnt(void)
+
+void 
+unmonopolize(void)
 {
-  return ptable.L1_cnt;
+  ptable.MoQ_activate = 0;
+  global_tick = 0;
 }
-int
-get_L2_cnt(void)
+
+void
+addsub_LevCnt(int qlev, int i)
 {
-  return ptable.L2_cnt;
+  // acquire(&ptable.lock);
+  if (qlev == 0)
+    ptable.L0_cnt += i;
+  else if (qlev == 1)
+    ptable.L1_cnt += i;
+  else if (qlev == 2)
+    ptable.L2_cnt += i;
+  else if (qlev == 3)
+    ptable.L3_cnt += i;
+  else if (qlev == 4)
+    ptable.MoQ_sz += i;
+  // release(&ptable.lock);
 }
+
 int
-get_L3_cnt(void)
+get_LevCnt(int qlev)
 {
-  return ptable.L3_cnt;
+  if(qlev == 0)
+    return ptable.L0_cnt;
+  else if(qlev == 1)
+    return ptable.L1_cnt;
+  else if(qlev == 2)
+    return ptable.L2_cnt;
+  else if(qlev == 3)
+    return ptable.L3_cnt;
+  else if(qlev == 4)
+    return ptable.MoQ_sz;
+  else
+    return -1;
+}
+
+int
+get_MoQ_activate(void)
+{
+  return ptable.MoQ_activate;
 }

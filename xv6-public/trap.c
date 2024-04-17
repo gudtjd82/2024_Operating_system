@@ -13,7 +13,7 @@ struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
-uint tick_for_boost = 0;
+uint global_tick = 0;
 
 void
 tvinit(void)
@@ -118,59 +118,62 @@ trap(struct trapframe *tf)
 
 // #elif MLFQ_SCHED
     myproc()->tick++;
-    tick_for_boost++;
+    global_tick++;
 
-    if(tick_for_boost >= 100)
+    if(!get_MoQ_activate())  //MoQ 비활성화 상태
     {
-      tick_for_boost = 0;
-      priority_boost();
-    }
-
-    if(myproc()->qlev != MoQ && myproc()->tick >= (myproc()->qlev *2 + 2))
-    {
-      if(myproc()->qlev == L0)
+      if(global_tick >= 100)
       {
-        if(myproc()->pid % 2 != 0)
+        global_tick = 0;
+        priority_boost();
+      }
+
+      if(myproc()->qlev != MoQ && myproc()->tick >= (myproc()->qlev *2 + 2))
+      {
+        if(myproc()->qlev == L0)
         {
-          addsub_L0(-1);
-          myproc()->qlev = L1;
-          myproc()->seq = get_L1_cnt();
-          addsub_L1(1);
+          if(myproc()->pid % 2 != 0)
+          {
+            addsub_LevCnt(0, -1);
+            myproc()->qlev = L1;
+            myproc()->seq = get_LevCnt(1);
+            addsub_LevCnt(1, 1);
+            myproc()->tick = 0;
+          }
+          else
+          {
+            addsub_LevCnt(0, -1);
+            myproc()->qlev = L2;
+            myproc()->seq = get_LevCnt(2);
+            addsub_LevCnt(2, 1);
+            myproc()->tick = 0;
+          }
+        }
+        else if(myproc()->qlev == L1)
+        {
+          addsub_LevCnt(1, -1);
+          myproc()->qlev = L3;
+          myproc()->seq = get_LevCnt(3);
+          addsub_LevCnt(3, 1);
           myproc()->tick = 0;
         }
-        else
+        else if(myproc()->qlev == L2)
         {
-          addsub_L0(-1);
-          myproc()->qlev = L2;
-          myproc()->seq = get_L2_cnt();
-          addsub_L2(1);
+          addsub_LevCnt(2, -1);
+          myproc()->qlev = L3;
+          myproc()->seq = get_LevCnt(3);
+          addsub_LevCnt(3, 1);
           myproc()->tick = 0;
         }
-      }
-      else if(myproc()->qlev == L1)
-      {
-        addsub_L1(-1);
-        myproc()->qlev = L3;
-        myproc()->seq = get_L3_cnt();
-        addsub_L3(1);
-        myproc()->tick = 0;
-      }
-      else if(myproc()->qlev == L2)
-      {
-        addsub_L2(-1);
-        myproc()->qlev = L3;
-        myproc()->seq = get_L3_cnt();
-        addsub_L3(1);
-        myproc()->tick = 0;
-      }
-      else if(myproc()->qlev == L3)
-      {
-        if(myproc()->priority > 0)
-          myproc()->priority--;
-        myproc()->tick = 0;
-      }
+        else if(myproc()->qlev == L3)
+        {
+          if(myproc()->priority > 0)
+            myproc()->priority--;
+          myproc()->tick = 0;
+        }
 
-      yield();
+        yield();
+      }
     }
 // #endif
   }
