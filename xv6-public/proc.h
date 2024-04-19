@@ -32,6 +32,7 @@ struct context {
   uint eip;
 };
 
+// pj2
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 enum procQueue { L0, L1, L2, L3, MoQ };
 
@@ -51,6 +52,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
+  // pj2
   enum procQueue qlev;        // Queue lev
   int seq;                    // sequence in the queue
   int tick;                    // time quantum 

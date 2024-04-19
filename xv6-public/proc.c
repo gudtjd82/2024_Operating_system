@@ -12,13 +12,13 @@ struct {
   struct proc proc[NPROC];
 
   // pj2
-  int MoQ_activate;
-  int MoQ_sz;   // num of proc in MoQ
-
   int L0_cnt;
   int L1_cnt;
   int L2_cnt;
   int L3_cnt;
+
+  int MoQ_activate;
+  int MoQ_sz;   // num of proc in MoQ
 
 } ptable;
 
@@ -755,7 +755,7 @@ void
 unmonopolize(void)
 {
   ptable.MoQ_activate = 0;
-  global_tick = 0;
+  reset_global_tick();
 }
 
 void

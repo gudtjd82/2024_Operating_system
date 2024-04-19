@@ -85,7 +85,7 @@ SCHED_POLICY := DEFAULT
 endif
 
 ifndef TEST_NUM
-TEST_NUM = 1
+TEST_NUM = 4
 endif
 
 ifndef CC

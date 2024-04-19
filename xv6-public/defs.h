@@ -203,3 +203,5 @@ void            unmonopolize(void);
 void            addsub_LevCnt(int, int);
 int             get_LevCnt(int);
 int             get_MoQ_activate(void);
+//trap.c
+void            reset_global_tick(void);

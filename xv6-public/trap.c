@@ -12,6 +12,7 @@
 struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
+struct spinlock gtickslock;
 uint ticks;
 uint global_tick = 0;
 
@@ -27,6 +28,7 @@ tvinit(void)
   SETGATE(idt[128], 1, SEG_KCODE<<3, vectors[128], DPL_USER);
 
   initlock(&tickslock, "time");
+  initlock(&gtickslock, "gtime");
 }
 
 void
@@ -181,4 +183,13 @@ trap(struct trapframe *tf)
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();
+}
+
+// pj2
+void
+reset_global_tick(void)
+{
+  acquire(&gtickslock);
+  global_tick = 0;
+  release(&gtickslock);
 }
