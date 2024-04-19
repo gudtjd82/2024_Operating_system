@@ -10,7 +10,6 @@
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
-  
 
   // pj2
   int MoQ_activate;
