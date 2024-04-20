@@ -189,9 +189,6 @@ void            clearpteu(pde_t *pgdir, char *uva);
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
 
-// my_syscall.c
-int             myfunction(char*);
-
 // pj2
 // proc.c
 void            priority_boost(void);
@@ -202,6 +199,6 @@ void            monopolize(void);
 void            unmonopolize(void);
 void            inc_LevCnt(int);
 int             get_LevCnt(int);
-int             get_MoQ_activate(void);
+int             get_MoQ_active(void);
 //trap.c
 void            reset_global_tick(void);

@@ -12,8 +12,10 @@
 struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
-struct spinlock gtickslock;
 uint ticks;
+
+// pj2
+struct spinlock gticklock;
 uint global_tick = 0;
 
 void
@@ -29,7 +31,7 @@ tvinit(void)
 
   initlock(&tickslock, "time");
   // pj2
-  initlock(&gtickslock, "gtime");
+  initlock(&gticklock, "gtime");
 }
 
 void
@@ -116,10 +118,11 @@ trap(struct trapframe *tf)
   if(myproc() && myproc()->state == RUNNING &&
      tf->trapno == T_IRQ0+IRQ_TIMER)
   {
+    // pj2
     myproc()->tick++;
     global_tick++;
 
-    if(!get_MoQ_activate())  //MoQ 비활성화 상태
+    if(!get_MoQ_active())  //MoQ 비활성화 상태
     {
       if(global_tick >= 100)
       {
@@ -174,7 +177,7 @@ trap(struct trapframe *tf)
 void
 reset_global_tick(void)
 {
-  acquire(&gtickslock);
+  acquire(&gticklock);
   global_tick = 0;
-  release(&gtickslock);
+  release(&gticklock);
 }

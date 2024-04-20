@@ -23,7 +23,6 @@ int fork_children()
 }
 
 // priority
-#if (TEST_NUM >= 2)
 int fork_children2()
 {
   int i, p;
@@ -46,9 +45,7 @@ int fork_children2()
   }
   return parent;
 }
-#endif
 
-#if (TEST_NUM >= 4)
 // MoQ
 int fork_children3()
 {
@@ -74,7 +71,7 @@ int fork_children3()
   }
   return parent;
 }
-#endif
+
 void exit_children()
 {
   if (getpid() != parent)
@@ -92,7 +89,6 @@ int main(int argc, char *argv[])
   printf(1,"MLFQ test start\n");
   // printf(1,"%d\n",)
   
-#if (TEST_NUM >= 1)
   printf(1, "[Test 1] default\n");
   pid = fork_children();
 
@@ -118,8 +114,7 @@ int main(int argc, char *argv[])
   }
   exit_children();
   printf(1, "[Test 1] finished\n");
-#endif
-#if (TEST_NUM >= 2)
+
   printf(1, "[Test 2] priorities\n");
   pid = fork_children2();
 
@@ -145,8 +140,7 @@ int main(int argc, char *argv[])
   }
   exit_children();
   printf(1, "[Test 2] finished\n");
-#endif  
-#if (TEST_NUM >= 3)
+
   printf(1, "[Test 3] sleep\n");
   pid = fork_children2();
 
@@ -173,9 +167,7 @@ int main(int argc, char *argv[])
   }
   exit_children();
   printf(1, "[Test 3] finished\n");
-#endif
 
-#if (TEST_NUM >= 4)
   printf(1, "[Test 4] MoQ\n");
   pid = fork_children3();
 
@@ -207,7 +199,6 @@ int main(int argc, char *argv[])
   }
   exit_children();
   printf(1, "[Test 4] finished\n");
-#endif
   exit();
 }
 

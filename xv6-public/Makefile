@@ -27,7 +27,6 @@ OBJS = \
 	uart.o\
 	vectors.o\
 	vm.o\
-	my_syscall.o\
 
 # Cross-compiling (e.g., on Mac OS X)
 ifeq ($(shell uname), Darwin) # it only works when in OSX!ds
@@ -79,15 +78,6 @@ QEMU = $(shell if which qemu > /dev/null; \
 	echo "***" 1>&2; exit 1)
 endif
 
-ifndef SCHED_POLICY
-SCHED_POLICY := DEFAULT
-# SCHED_POLICY := MLFQ_SCHED
-endif
-
-ifndef TEST_NUM
-TEST_NUM = 4
-endif
-
 ifndef CC
 CC = $(TOOLPREFIX)gcc
 endif
@@ -104,8 +94,6 @@ OBJDUMP = $(TOOLPREFIX)objdump
 ifndef CFLAGS
 CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -Wno-error=stringop-overflow=0
 endif
-
-CFLAGS += -D$(SCHED_POLICY) -DTEST_NUM=$(TEST_NUM)
 
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
@@ -216,11 +204,6 @@ UPROGS=\
 	_usertests\
 	_wc\
 	_zombie\
-	_my_userapp\
-	_project01\
-	_my_test\
-	_lab03\
-	_lab04\
 	_mlfq_test\
 
 fs.img: mkfs README $(UPROGS)
@@ -291,7 +274,7 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 EXTRA=\
 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
-	printf.c umalloc.c my_userapp.c project01.c my_test.c lab03.c lab04.c mlfq_test.c\
+	printf.c umalloc.c mlfq_test.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\
 

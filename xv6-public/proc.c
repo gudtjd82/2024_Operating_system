@@ -17,7 +17,7 @@ struct {
   int L2_cnt;
   int L3_cnt;
 
-  int MoQ_activate;
+  int MoQ_active;
   int MoQ_sz;   // size of MoQ
   int MoQ_cnt;  // total num of MoQ proc including termiated
 } ptable;
@@ -25,8 +25,6 @@ struct {
 static struct proc *initproc;
 
 int nextpid = 1;
-// pj2
-extern uint global_tick;
 
 extern void forkret(void);
 extern void trapret(void);
@@ -40,7 +38,7 @@ pinit(void)
   // pj2
   ptable.MoQ_sz = 0;
   ptable.MoQ_cnt = 0;
-  ptable.MoQ_activate = 0;
+  ptable.MoQ_active = 0;
   ptable.L0_cnt = 0;
   ptable.L1_cnt = 0;
   ptable.L2_cnt = 0;
@@ -374,7 +372,7 @@ scheduler(void)
       if(p->state != RUNNABLE)
         continue;
       
-      if(ptable.MoQ_activate)
+      if(ptable.MoQ_active)
       {
         if(ptable.MoQ_sz == 0)
           break;
@@ -424,7 +422,7 @@ scheduler(void)
       }
     }
 
-    if(ptable.MoQ_activate)
+    if(ptable.MoQ_active)
     {
       if (MoQ_proc != 0)
       {
@@ -663,7 +661,7 @@ getlev(void)
   if(p->qlev == MoQ)
     return 99;
 
-  return myproc()->qlev;
+  return p->qlev;
 }
 
 int
@@ -713,8 +711,8 @@ setmonopoly(int pid, int password)
       if(myproc()->pid == target_proc->pid)
         return -4;
       
-      p->qlev = MoQ;
-      p->seq = ptable.MoQ_cnt++;
+      target_proc->qlev = MoQ;
+      target_proc->seq = ptable.MoQ_cnt++;
       ptable.MoQ_sz++;
     }
   }
@@ -729,13 +727,13 @@ setmonopoly(int pid, int password)
 void 
 monopolize(void)
 {
-  ptable.MoQ_activate = 1;
+  ptable.MoQ_active = 1;
 }
 
 void 
 unmonopolize(void)
 {
-  ptable.MoQ_activate = 0;
+  ptable.MoQ_active = 0;
   reset_global_tick();
 }
 
@@ -772,7 +770,7 @@ get_LevCnt(int qlev)
 }
 
 int
-get_MoQ_activate(void)
+get_MoQ_active(void)
 {
-  return ptable.MoQ_activate;
+  return ptable.MoQ_active;
 }

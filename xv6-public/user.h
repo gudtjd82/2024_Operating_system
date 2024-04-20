@@ -23,12 +23,8 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
-int yield(void);
-// my_syscall.c
-int myfunction(char*);
-// project01 - getgpid()
-int getgpid(void);
 // pj2
+int yield(void);
 int getlev(void);
 int setpriority(int, int);
 int setmonopoly(int, int);
