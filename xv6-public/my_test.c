@@ -2,15 +2,12 @@
 #include "stat.h"
 #include "user.h"
 
-int main(int argc, char *argv[])
+int
+main(int argc, char *argv[])
 {
-    int my_pid, my_gpid;
-    printf(1, "My student id is 2021042842\n");
-
-    my_pid = getpid();
-    my_gpid = getgpid();
-    printf(1, "My pid is %d\n", my_pid);
-    printf(1, "My gpid is %d\n", my_gpid);
-
-    exit();
+  printf(1, "Attempting to access bad memory...\n");
+  // 잘못된 메모리 접근 시도
+  int *bad_ptr = (int *)0xFFFFFFFF; // 잘못된 주소
+  printf(1, "Read from bad memory: %d\n", *bad_ptr); // 여기에서 프로세스는 강제 종료되어야 함
+  exit();
 }

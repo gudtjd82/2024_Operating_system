@@ -28,6 +28,7 @@ tvinit(void)
   SETGATE(idt[128], 1, SEG_KCODE<<3, vectors[128], DPL_USER);
 
   initlock(&tickslock, "time");
+  // pj2
   initlock(&gtickslock, "gtime");
 }
 
@@ -115,10 +116,6 @@ trap(struct trapframe *tf)
   if(myproc() && myproc()->state == RUNNING &&
      tf->trapno == T_IRQ0+IRQ_TIMER)
   {
-// #ifdef DEFAULT
-    // yield();
-
-// #elif MLFQ_SCHED
     myproc()->tick++;
     global_tick++;
 
@@ -149,14 +146,7 @@ trap(struct trapframe *tf)
             myproc()->tick = 0;
           }
         }
-        else if(myproc()->qlev == L1) // L1 -> L3
-        {
-          myproc()->qlev = L3;
-          myproc()->seq = get_LevCnt(3);
-          inc_LevCnt(3);
-          myproc()->tick = 0;
-        }
-        else if(myproc()->qlev == L2) // L2 -> L3
+        else if(myproc()->qlev == L1 || myproc()->qlev == L2) // L1 -> L3 Or L2 -> L3
         {
           myproc()->qlev = L3;
           myproc()->seq = get_LevCnt(3);
@@ -173,7 +163,6 @@ trap(struct trapframe *tf)
         yield();
       }
     }
-// #endif
   }
 
   // Check if the process has been killed since we yielded
