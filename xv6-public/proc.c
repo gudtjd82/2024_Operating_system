@@ -18,8 +18,8 @@ struct {
   int L3_cnt;
 
   int MoQ_activate;
-  int MoQ_sz;   // num of proc in MoQ
-
+  int MoQ_sz;   // size of MoQ
+  int MoQ_cnt;  // total num of MoQ proc including termiated
 } ptable;
 
 static struct proc *initproc;
@@ -39,6 +39,7 @@ pinit(void)
   initlock(&ptable.lock, "ptable");
   // pj2
   ptable.MoQ_sz = 0;
+  ptable.MoQ_cnt = 0;
   ptable.MoQ_activate = 0;
   ptable.L0_cnt = 0;
   ptable.L1_cnt = 0;
@@ -289,9 +290,10 @@ exit(void)
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
   // pj2
-  addsub_LevCnt(curproc->qlev, -1);
-  curproc->seq = -1;
+  if(curproc->qlev == MoQ)
+    ptable.MoQ_sz--;
   curproc->qlev = -1;
+  curproc->seq = -1;
   curproc->tick = -1;
   curproc->priority = -1;
   sched();
@@ -357,8 +359,6 @@ scheduler(void)
   struct cpu *c = mycpu();
   c->proc = 0;
 
-  int previous_qlev = 0;
-  
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -366,10 +366,8 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
-// #ifdef MLFQ_SCHED
     // pj2
     // ptable을 전부 돌며 schdeule 될 process를 고름
-    // Queue level이 가장 높은 process를 scheduling
     struct proc *scheduled_proc = 0;
     struct proc *MoQ_proc = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -378,6 +376,9 @@ scheduler(void)
       
       if(ptable.MoQ_activate)
       {
+        if(ptable.MoQ_sz == 0)
+          break;
+
         if(p->qlev == MoQ)
         {
           if(MoQ_proc != 0)
@@ -430,24 +431,16 @@ scheduler(void)
         scheduled_proc = MoQ_proc;
       }
       else
-        unmonopolize();
+      {
+        pushcli();
+        if(ptable.MoQ_sz == 0)
+          unmonopolize();
+        popcli();
+      }
     }
-    
-
 
     if(scheduled_proc != 0)
     {
-      // debugging
-      if(previous_qlev != scheduled_proc->qlev)
-      {
-        previous_qlev = scheduled_proc->qlev;
-        // cprintf("\nScheduled Queue: L%d\n", previous_qlev);
-      }
-      if(scheduled_proc->qlev == L3)
-      {
-        // cprintf("\nScheduled priority: %d\n", scheduled_proc->priority);
-      }
-
       c->proc = scheduled_proc;
       switchuvm(scheduled_proc);
       scheduled_proc->state = RUNNING;
@@ -457,13 +450,7 @@ scheduler(void)
 
       c->proc = 0;
     }
-    // else
-    // {
-    //   release(&ptable.lock);
-    //   priority_boost();
-    //   acquire(&ptable.lock);
-    // }
-// #endif
+
     release(&ptable.lock);
   }
 }
@@ -657,13 +644,8 @@ priority_boost(void)
 
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    
-    if(p->qlev == L1)
-      ptable.L1_cnt--;
-    else if(p->qlev == L2)
-      ptable.L2_cnt--;
-    else if(p->qlev == L3)
-      ptable.L3_cnt--;
+    if(p->qlev == MoQ)
+      continue;
 
     p->qlev = L0;
     ptable.L0_cnt++;
@@ -676,9 +658,7 @@ priority_boost(void)
 int
 getlev(void)
 {
-  pushcli();
   struct proc *p = myproc();
-  popcli();
 
   if(p->qlev == MoQ)
     return 99;
@@ -734,7 +714,8 @@ setmonopoly(int pid, int password)
         return -4;
       
       p->qlev = MoQ;
-      p->seq = ptable.MoQ_sz++;
+      p->seq = ptable.MoQ_cnt++;
+      ptable.MoQ_sz++;
     }
   }
   release(&ptable.lock);
@@ -759,20 +740,18 @@ unmonopolize(void)
 }
 
 void
-addsub_LevCnt(int qlev, int i)
+inc_LevCnt(int qlev)
 {
-  // acquire(&ptable.lock);
   if (qlev == 0)
-    ptable.L0_cnt += i;
+    ptable.L0_cnt++;
   else if (qlev == 1)
-    ptable.L1_cnt += i;
+    ptable.L1_cnt++;
   else if (qlev == 2)
-    ptable.L2_cnt += i;
+    ptable.L2_cnt++;
   else if (qlev == 3)
-    ptable.L3_cnt += i;
+    ptable.L3_cnt++;
   else if (qlev == 4)
-    ptable.MoQ_sz += i;
-  // release(&ptable.lock);
+    ptable.MoQ_cnt++;
 }
 
 int
@@ -787,7 +766,7 @@ get_LevCnt(int qlev)
   else if(qlev == 3)
     return ptable.L3_cnt;
   else if(qlev == 4)
-    return ptable.MoQ_sz;
+    return ptable.MoQ_cnt;
   else
     return -1;
 }

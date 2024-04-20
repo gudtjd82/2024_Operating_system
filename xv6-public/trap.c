@@ -134,40 +134,36 @@ trap(struct trapframe *tf)
       {
         if(myproc()->qlev == L0)
         {
-          if(myproc()->pid % 2 != 0)
+          if(myproc()->pid % 2 != 0)  // L0 -> L1
           {
-            addsub_LevCnt(0, -1);
             myproc()->qlev = L1;
             myproc()->seq = get_LevCnt(1);
-            addsub_LevCnt(1, 1);
+            inc_LevCnt(1);
             myproc()->tick = 0;
           }
-          else
+          else  // L0 -> L2
           {
-            addsub_LevCnt(0, -1);
             myproc()->qlev = L2;
             myproc()->seq = get_LevCnt(2);
-            addsub_LevCnt(2, 1);
+            inc_LevCnt(2);
             myproc()->tick = 0;
           }
         }
-        else if(myproc()->qlev == L1)
+        else if(myproc()->qlev == L1) // L1 -> L3
         {
-          addsub_LevCnt(1, -1);
           myproc()->qlev = L3;
           myproc()->seq = get_LevCnt(3);
-          addsub_LevCnt(3, 1);
+          inc_LevCnt(3);
           myproc()->tick = 0;
         }
-        else if(myproc()->qlev == L2)
+        else if(myproc()->qlev == L2) // L2 -> L3
         {
-          addsub_LevCnt(2, -1);
           myproc()->qlev = L3;
           myproc()->seq = get_LevCnt(3);
-          addsub_LevCnt(3, 1);
+          inc_LevCnt(3);
           myproc()->tick = 0;
         }
-        else if(myproc()->qlev == L3)
+        else if(myproc()->qlev == L3) // L3 -> L3
         {
           if(myproc()->priority > 0)
             myproc()->priority--;

@@ -200,7 +200,7 @@ int             setpriority(int, int);
 int             setmonopoly(int, int);
 void            monopolize(void);
 void            unmonopolize(void);
-void            addsub_LevCnt(int, int);
+void            inc_LevCnt(int);
 int             get_LevCnt(int);
 int             get_MoQ_activate(void);
 //trap.c
