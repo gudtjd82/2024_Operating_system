@@ -1,0 +1,10 @@
+#include "types.h"
+#include "user.h"
+
+int
+main(int argc, char *argv[])
+{
+    __asm__("int $128");
+    // exit();
+    return 0;
+}
