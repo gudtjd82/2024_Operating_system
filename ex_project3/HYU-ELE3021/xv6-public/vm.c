@@ -156,10 +156,11 @@ switchkvm(void)
 void
 switchuvm(struct proc *p)
 {
-  struct pthread *pth = &(p->pth[p->onTidx]);
+  struct thread *t;
   if(p == 0)
     panic("switchuvm: no process");
-  if(pth->kstack == 0)
+  t = &p->threads[p->tidx];
+  if(t->kstack == 0)
     panic("switchuvm: no kstack");
   if(p->pgdir == 0)
     panic("switchuvm: no pgdir");
@@ -169,12 +170,30 @@ switchuvm(struct proc *p)
                                 sizeof(mycpu()->ts)-1, 0);
   mycpu()->gdt[SEG_TSS].s = 0;
   mycpu()->ts.ss0 = SEG_KDATA << 3;
-  mycpu()->ts.esp0 = (uint)pth->kstack + KSTACKSIZE;
+  mycpu()->ts.esp0 = (uint)t->kstack + KSTACKSIZE;
   // setting IOPL=0 in eflags *and* iomb beyond the tss segment limit
   // forbids I/O instructions (e.g., inb and outb) from user space
   mycpu()->ts.iomb = (ushort) 0xFFFF;
   ltr(SEG_TSS << 3);
   lcr3(V2P(p->pgdir));  // switch to process's address space
+  popcli();
+}
+
+// Switch default kernel stack for trap,
+// syscall and privilege escalation.
+void
+switch_trap_kstack(struct proc *p)
+{
+  struct thread *t;
+  if(p == 0)
+    panic("switchuvm: no process");
+  t = &p->threads[p->tidx];
+  if(t->kstack == 0)
+    panic("switchuvm: no kstack");
+
+  pushcli();
+  // switch default kernel stack to current thread.
+  mycpu()->ts.esp0 = (uint)t->kstack + KSTACKSIZE;
   popcli();
 }
 

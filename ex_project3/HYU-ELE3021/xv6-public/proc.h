@@ -34,6 +34,17 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+// Per-thread state
+struct thread {
+  enum procstate state;         // thread state
+  int tid;                      // thread ID
+  void *chan;                   // if non-zero, sleeping on chan
+  char *kstack;                 // bottom of kernel stack
+  struct trapframe *tf;         // trap frame for current interrupt handler.
+  struct context *context;      // cpu context, swtch() here to run process
+  void* retval;                 // return value
+};
+
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
@@ -46,21 +57,17 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
-  // pj3
-  int onTidx;                 // index of active thread
-  struct pthread pth[NPTH];    // thread list
-  char *kstacks[NPTH];        // kstack for each thread
-};
+  int tidx;                         // index of running thread
+  struct thread threads[NTHREAD];   // thread pool
+  char* kstacks[NTHREAD];           // kernel stack pool
+  uint ustacks[NTHREAD];            // user stack pool
 
-// pj3
-struct pthread {
-  char *kstack;                // Bottom of kernel stack for this process
-  enum procstate state;        // Process state
-  int tid;                     // Process ID
-  struct trapframe *tf;        // Trap frame for current syscall
-  struct context *context;     // swtch() here to run process
-  void *chan;                  // If non-zero, sleeping on chan
-  void *rtval;                 // return value
+  struct {
+    int level;                // scheduler level, -1 for stride, 0 ~ 3 for MLFQ
+    int index;                // index of process table in scheduler
+    uint elapsed;             // cpu time spent by process
+    uint start;               // start tick.
+  } mlfq;                     // member for MLFQ scheduler
 };
 
 // Process memory is laid out contiguously, low addresses first:
