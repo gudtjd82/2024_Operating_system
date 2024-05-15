@@ -122,6 +122,7 @@ void            wakeup(void*);
 void            yield(void);
 // pj3
 struct pthread* mypth(void);
+int             set_proc_state(struct proc *);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

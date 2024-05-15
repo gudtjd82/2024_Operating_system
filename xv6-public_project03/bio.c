@@ -97,15 +97,11 @@ struct buf*
 bread(uint dev, uint blockno)
 {
   struct buf *b;
-  cprintf("3-1-1\n");
 
   b = bget(dev, blockno);
-  cprintf("3-1-2\n");
   if((b->flags & B_VALID) == 0) {
-    cprintf("3-1-3\n");
     iderw(b);
   }
-  cprintf("3-1-4\n");
   return b;
 }
 

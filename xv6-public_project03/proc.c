@@ -309,10 +309,11 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
-  for(pth = p->pth; pth < &(p->pth[NPTH]); pth++)
+  for(pth = curproc->pth; pth < &(curproc->pth[NPTH]); pth++)
   {
     if(pth->state == UNUSED)
       continue;
+      
     pth->state = ZOMBIE;
   }
   sched();
@@ -328,7 +329,6 @@ wait(void)
   struct pthread *pth;
   int havekids, pid;
   struct proc *curproc = myproc();
-  struct pthread *curpth = mypth();
   
   acquire(&ptable.lock);
   for(;;){
@@ -374,7 +374,7 @@ wait(void)
     }
 
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
-    sleep(curpth, &ptable.lock);  //DOC: wait-sleep
+    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
 }
 
@@ -405,7 +405,6 @@ scheduler(void)
       if(p->state != RUNNABLE)
         continue;
 
-      int find_th = 0;
       int i = 0;
       for(pth = p->pth; pth < &(p->pth[NPTH]); pth++)
       {
@@ -416,7 +415,7 @@ scheduler(void)
         }
 
         pth->state = RUNNING;
-        p->onTidx = i;
+        p->onTidx = i++;
 
         // schedule되는 첫 proc거나 기존과 다른 proc가 schedule되는 경우
         if(scheduled_proc == 0 || p != scheduled_proc)
@@ -513,7 +512,7 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
-  struct pthread *pth = mypth();
+  struct pthread *curpth = mypth();
   
   if(p == 0)
     panic("sleep");
@@ -532,13 +531,15 @@ sleep(void *chan, struct spinlock *lk)
     release(lk);
   }
   // Go to sleep.
-  pth->chan = chan;
-  pth->state = SLEEPING;
+  curpth->chan = chan;
+  curpth->state = SLEEPING;
+
+  set_proc_state(p);
 
   sched();
 
   // Tidy up.
-  pth->chan = 0;
+  curpth->chan = 0;
 
   // Reacquire original lock.
   if(lk != &ptable.lock){  //DOC: sleeplock2
@@ -558,13 +559,14 @@ wakeup1(void *chan)
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
   {
-    if(p->state == RUNNABLE)
+    if(p->state == SLEEPING || p->state == RUNNABLE)
     {
       for(pth = p->pth; pth < &(p->pth[NPTH]); pth++)
       {
         if(pth->state == SLEEPING && pth->chan == chan)
         {
           pth->state = RUNNABLE;
+          p->state = RUNNABLE;
         }
       }
     }
@@ -653,12 +655,59 @@ struct pthread*
 mypth(void)
 {
   struct proc* p;
-  struct pthread* th;
+  struct pthread* pth;
 
   pushcli();
   p = myproc();
-  th = &(p->pth[p->onTidx]);
+  pth = &(p->pth[p->onTidx]);
   popcli();
 
-  return th;
+  return pth;
+}
+
+// return proc state
+int
+set_proc_state(struct proc *p)
+{
+  struct pthread *pth;
+  int unused = 0, sleeping = 0, runnable = 0, running = 0, zombie = 0;
+  for(pth = p->pth; pth < &(p->pth[NPTH]); pth++)
+  {
+    if(pth->state == RUNNING)
+    {
+      running = 1;
+      break;
+    }
+    else if(pth->state == RUNNABLE)
+      runnable++;
+    else if(pth->state == SLEEPING)
+      sleeping++;
+    else if(pth->state == ZOMBIE)
+      zombie++;
+    else if(pth->state == UNUSED)
+      unused++;
+  }
+
+  if(running)
+  {
+    p->state = RUNNING;
+    return RUNNING;
+  }
+  if(runnable)
+  {
+  p->state = RUNNABLE;
+    return RUNNABLE;
+  }
+  if(sleeping){
+    p->state = SLEEPING;
+    return SLEEPING;
+  }
+  if(zombie){
+    p->state = ZOMBIE;
+    return ZOMBIE;
+  }
+  else{
+    p->state = UNUSED;
+    return UNUSED;
+  }
 }

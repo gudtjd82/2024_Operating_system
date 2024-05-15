@@ -35,9 +35,7 @@ readsb(int dev, struct superblock *sb)
 
   bp = bread(dev, 1);
   memmove(sb, bp->data, sizeof(*sb));
-  cprintf("3-3\n");
   brelse(bp);
-  cprintf("3-4\n");
 }
 
 // Zero a block.
