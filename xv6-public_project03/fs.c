@@ -32,10 +32,8 @@ void
 readsb(int dev, struct superblock *sb)
 {
   struct buf *bp;
-  cprintf("3-1\n");
 
   bp = bread(dev, 1);
-  cprintf("3-2\n");
   memmove(sb, bp->data, sizeof(*sb));
   cprintf("3-3\n");
   brelse(bp);
@@ -175,17 +173,13 @@ struct {
 void
 iinit(int dev)
 {
-  cprintf("1\n");
   int i = 0;
   
   initlock(&icache.lock, "icache");
-  cprintf("2\n");
   for(i = 0; i < NINODE; i++) {
     initsleeplock(&icache.inode[i].lock, "inode");
   }
-  cprintf("3\n");
   readsb(dev, &sb);
-  cprintf("4\n");
   cprintf("sb: size %d nblocks %d ninodes %d nlog %d logstart %d\
  inodestart %d bmap start %d\n", sb.size, sb.nblocks,
           sb.ninodes, sb.nlog, sb.logstart, sb.inodestart,

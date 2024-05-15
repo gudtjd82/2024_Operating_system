@@ -61,6 +61,7 @@ struct proc {
   int onTidx;                 // index of active thread
   struct pthread pth[NPTH];    // thread list
   char *kstacks[NPTH];        // kstack for each thread
+  uint ustacks[NPTH];         // sz for ustack of each thread
 };
 
 // Process memory is laid out contiguously, low addresses first:

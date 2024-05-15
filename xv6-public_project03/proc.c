@@ -101,19 +101,20 @@ found:
 
   release(&ptable.lock);
 
-  // Initialize kstacks of proc
-  char **k;
-  for(k = p->kstacks; k < &(p->kstacks[NPTH]); k++)
+  // initialize kstack, ustacks
+  for(int i = 0; i < NPTH; i++)
   {
-    k = 0;
+    p->kstacks[i] = 0;
+    p->ustacks[i] = 0;
   }
+
   // Allocate kernel stack.
-  if((pth->kstack = kalloc()) == 0){
+  if((p->kstacks[0] = kalloc()) == 0){
     p->state = UNUSED;
     pth->state = UNUSED;
     return 0;
   }
-  p->kstacks[0] = pth->kstack;
+  pth->kstack = p->kstacks[0];
   sp = pth->kstack + KSTACKSIZE;
 
   // Leave room for trap frame.
@@ -152,6 +153,7 @@ userinit(void)
     panic("userinit: out of memory?");
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
   p->sz = PGSIZE;
+
   memset(pth->tf, 0, sizeof(*pth->tf));
   pth->tf->cs = (SEG_UCODE << 3) | DPL_USER;
   pth->tf->ds = (SEG_UDATA << 3) | DPL_USER;
@@ -224,6 +226,19 @@ fork(void)
     npth->state = UNUSED;
     return -1;
   }
+
+  // Copy user stack
+  for(int i = 0; i < NPTH; i++)
+  {
+    np->ustacks[i] = curproc->ustacks[i];
+  }
+
+  // np의 0번째 thread(Main thread)로 ustack 이동
+  uint temp = np->ustacks[curproc->onTidx];
+  np->ustacks[curproc->onTidx] = np->ustacks[0];
+  np->ustacks[0] = temp;
+  np->onTidx = 0;
+
   np->sz = curproc->sz;
   np->parent = curproc;
   *npth->tf = *curpth->tf;
@@ -335,6 +350,7 @@ wait(void)
             kfree(pth->kstack);
             p->kstacks[i] = 0;
           }
+          p->ustacks[i] = 0;
           pth->kstack = 0;
           pth->tid = 0;
           pth->state = UNUSED;
@@ -384,31 +400,39 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+    struct proc *scheduled_proc = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
 
-      //   to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
+      int find_th = 0;
       int i = 0;
       for(pth = p->pth; pth < &(p->pth[NPTH]); pth++)
       {
         if(pth->state != RUNNABLE)
+        {
+          i++;
           continue;
-        
-        p->onTidx = i;
-        p->state = RUNNING;
-        //   to pth
+        }
+
         pth->state = RUNNING;
+        p->onTidx = i;
+
+        // schedule되는 첫 proc거나 기존과 다른 proc가 schedule되는 경우
+        if(scheduled_proc == 0 || p != scheduled_proc)
+        {
+          scheduled_proc = p;
+          c->proc = p;
+          switchuvm(p);
+          p->state = RUNNING;
+        }
+        else    // 기존의 proc에서 thread scheduling
+        {
+          switcpth(p);
+        }
         swtch(&(c->scheduler), pth->context);
         switchkvm();
-
-        i++;
       }
-
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
@@ -467,7 +491,6 @@ yield(void)
 void
 forkret(void)
 {
-  cprintf("forkret called\n");
   static int first = 1;
   // Still holding ptable.lock from scheduler.
   release(&ptable.lock);
@@ -477,9 +500,7 @@ forkret(void)
     // of a regular process (e.g., they call sleep), and thus cannot
     // be run from main().
     first = 0;
-    cprintf("forkret first\n");
     iinit(ROOTDEV);
-    cprintf("forkret iinit\n");
     initlog(ROOTDEV);
   }
 
