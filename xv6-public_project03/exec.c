@@ -18,6 +18,7 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
+  struct pthread *curpth = mypth();
 
   begin_op();
 
@@ -97,8 +98,8 @@ exec(char *path, char **argv)
   oldpgdir = curproc->pgdir;
   curproc->pgdir = pgdir;
   curproc->sz = sz;
-  curproc->tf->eip = elf.entry;  // main
-  curproc->tf->esp = sp;
+  curpth->tf->eip = elf.entry;  // main
+  curpth->tf->esp = sp;
   switchuvm(curproc);
   freevm(oldpgdir);
   return 0;

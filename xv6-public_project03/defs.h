@@ -120,6 +120,8 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+// pj3
+struct pthread* mypth(void);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

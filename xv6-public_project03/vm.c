@@ -156,7 +156,7 @@ switchkvm(void)
 void
 switchuvm(struct proc *p)
 {
-  struct pthread *pth = &(p->pth[p->onTidx]);
+  struct pthread *pth = mypth();
   if(p == 0)
     panic("switchuvm: no process");
   if(pth->kstack == 0)
