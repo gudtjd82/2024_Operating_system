@@ -346,7 +346,7 @@ wait(void)
         
         for(pth = p->pth, i = 0; pth < &(p->pth[NPTH]); pth++, i++)
         {
-          if(p->kstacks[i] != 0)
+          if(pth->kstack != 0)
           {
             kfree(pth->kstack);
             p->kstacks[i] = 0;
@@ -558,7 +558,7 @@ wakeup1(void *chan)
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
   {
-    if(p->state == SLEEPING || p->state == RUNNABLE)
+    if(p->state == SLEEPING || p->state == RUNNABLE || p->state == RUNNING)
     {
       for(pth = p->pth; pth < &(p->pth[NPTH]); pth++)
       {
@@ -692,16 +692,16 @@ set_proc_state(struct proc *p)
     p->state = RUNNING;
     return RUNNING;
   }
-  if(runnable)
+  else if(runnable)
   {
-  p->state = RUNNABLE;
+    p->state = RUNNABLE;
     return RUNNABLE;
   }
-  if(sleeping){
+  else if(sleeping){
     p->state = SLEEPING;
     return SLEEPING;
   }
-  if(zombie){
+  else if(zombie){
     p->state = ZOMBIE;
     return ZOMBIE;
   }
@@ -760,15 +760,14 @@ alloc_ustack(struct proc *p, int tidx)
 {
   uint *ustack;
   uint sz;
-
+  ustack = &(p->ustacks[tidx]);
   // 새로운 ustack 할당 => sz 증가
-  if(*(ustack = &(p->ustacks[tidx])) == 0)
+  if(*(ustack) == 0)
   {
     sz = PGROUNDUP(p->sz);
     if((sz = allocuvm(p->pgdir, sz, sz + PGSIZE)) == 0)
       return 0;
 
-    clearpteu(p->pgdir, (char*)(sz - PGSIZE));
     *ustack = sz;
     p->sz = sz;
   }
@@ -779,44 +778,26 @@ alloc_ustack(struct proc *p, int tidx)
   return ustack;
 }
 
-void
-thread_end(void)
-{
-  struct pthread *pth = mypth();
-
-  acquire(&ptable.lock);
-
-  // wakeup join
-  pth->state = ZOMBIE;
-  wakeup1(pth);
-
-  set_proc_state(myproc());
-  sched();
-  panic("thread zombie exit\n");
-}
 
 int
 thread_create(thread_t *thread, void*(*start_routine)(void *), void *arg)
 {
-  cprintf("thread create called!\n");
   int tidx;
   struct pthread *npth;
   struct proc *curproc = myproc();
   struct pthread *curpth = mypth();
-  uint sz, sp, *ustack;
+  uint sz, *ustack;
+  char *sp;
 
   acquire(&ptable.lock);
-  cprintf("thread_create: acquire lock!\n");
 
   // 1. create new pth
   if((npth = allocpth(curproc)) == 0)
     goto bad;
-  cprintf("thread_create: alloc pth!\n");
 
   *npth->tf = *curpth->tf;
   
   // save new thread id
-  *thread = npth->tid;
   tidx = npth->tidx;
 
   // 2. set starting routine of the new pth
@@ -824,8 +805,8 @@ thread_create(thread_t *thread, void*(*start_routine)(void *), void *arg)
     goto bad;
 
   sz = *(ustack);
-  sp = sz;
-  cprintf("thread_create: alloc_ustack!\nsz:%d\n", sz);
+  sp = (char*)sz;
+  curproc->sz = sz;
 
   sp -= 4;
   *(uint*)sp = (uint)arg;
@@ -839,21 +820,18 @@ thread_create(thread_t *thread, void*(*start_routine)(void *), void *arg)
   // tmp_ustack[2] = sp - 8;
 
   sp -= 4;
-  *(uint*)sp = (uint)thread_end;
+  *(uint*)sp = (uint)thread_exit;
   
-  cprintf("thread_create: set stack!\n");
 
+  npth->tf->esp = (uint)sp;
   npth->tf->eip = (uint)start_routine;
-  cprintf("1\n");
-  npth->tf->esp = sp;
-  cprintf("2\n");
+
+  *thread = npth->tid;
 
   // intialize return value
   npth->state = RUNNABLE;
   npth->retval = 0;
-  cprintf("3\n");
   release(&ptable.lock);
-  cprintf("thread create complete!\n");
   return 0;
   
 bad:
@@ -873,14 +851,15 @@ thread_exit(void *retval)
   struct pthread *pth = mypth();
 
   acquire(&ptable.lock);
-  pth->retval = retval;
 
+
+  pth->retval = retval;
 
   // wakeup join
   pth->state = ZOMBIE;
-  wakeup1(pth);
 
   set_proc_state(myproc());
+  wakeup1((void*)pth->tid);
   sched();
   panic("thread zombie exit\n");
 }
@@ -889,45 +868,43 @@ int
 thread_join(thread_t thread, void **retval)
 {
   struct proc *p;
-  struct pthread *pth;
+  struct pthread *pth = 0;
+  int havepth;
 
   acquire(&ptable.lock);
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  havepth = 0;
+  for(;;)
   {
-    if(p->state == SLEEPING || p->state == RUNNABLE)
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     {
       for(pth = p->pth; pth < &(p->pth[NPTH]); pth++)
       {
-        if(pth->tid = thread)
-          break;
+        if(pth->tid == thread)
+        {
+          havepth = 1;
+          if(pth->state == ZOMBIE)
+          {
+            pth->kstack = 0;
+            pth->state = UNUSED;
+            pth->tid = 0;
+
+            *retval = pth->retval;
+            pth->retval = 0;
+
+            release(&ptable.lock);
+            return 0;
+          }
+        }
       }
     }
-    if(pth->tid = thread)
-      break;
-  }
 
-  if(pth->tid != thread)
-  {
-    release(&ptable.lock);
-    return -1;
-  }
-
-  for(;;)
-  {
-    if(pth->state == ZOMBIE)
+    if(!havepth)
     {
-      pth->kstack = 0;
-      pth->state = UNUSED;
-      pth->tid = 0;
-      p->ustacks[pth->tidx] = 0;
-
-      *retval = pth->retval;
-      pth->retval = 0;
-
       release(&ptable.lock);
-      return 0;
+      return -1;
     }
-    sleep(pth, &ptable.lock);
+
+    sleep((void*)thread, &ptable.lock);
   }
 }

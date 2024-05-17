@@ -105,7 +105,6 @@ void create_all(int n, void *(*entry)(void *))
 {
   int i;
   for (i = 0; i < n; i++) {
-    printf(1, "calling thread_create!\n");
     if (thread_create(&thread[i], entry, (void *)i) != 0) {
       printf(1, "Error creating thread %d\n", i);
       failed();
@@ -132,7 +131,9 @@ int main(int argc, char *argv[])
 {
   int i;
   for (i = 0; i < NUM_THREAD; i++)
+  {
     expected[i] = i;
+  }
 
   printf(1, "Test 1: Basic test\n");
   create_all(2, thread_basic);
