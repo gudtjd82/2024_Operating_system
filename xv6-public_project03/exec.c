@@ -7,6 +7,7 @@
 #include "x86.h"
 #include "elf.h"
 
+// pj3
 int
 exec(char *path, char **argv)
 {

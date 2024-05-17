@@ -89,3 +89,51 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// pj3
+int
+sys_thread_create(void)
+{
+  int tid;
+  void *(*routine)(void*);
+  void *arg;
+
+  if(argint(0, &tid) < 0)
+    return -1;
+  
+  if(argptr(1, &routine, sizeof(routine)) < 0)
+    return -1;
+
+  if(argptr(2, &arg, sizeof(arg))< 0)
+    return -1;
+  
+  return thread_create(tid, routine, arg);
+}
+
+int
+sys_thread_exit(void)
+{
+  void *retval;
+
+  if(argptr(0, &retval, sizeof(retval)) < 0)
+    return -1;
+
+  thread_exit(retval);
+
+  return 0;
+}
+
+int
+sys_thread_join(void)
+{
+  int tid;
+  void **retval;
+
+  if(argint(0, &tid) < 0)
+    return -1;
+  
+  if(argptr(1, &retval, sizeof(retval)) < 0)
+    return -1;  
+  
+  return thread_join(tid, retval);
+}

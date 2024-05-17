@@ -1,12 +1,13 @@
 #include "types.h"
 #include "stat.h"
 #include "user.h"
-#include "proc.h"
+// #include "param.h"
+// #include "proc.h"
 
 #define NUM_THREAD 5
 
 int status;
-struct pthread thread[NUM_THREAD];
+thread_t thread[NUM_THREAD];
 int expected[NUM_THREAD];
 
 void failed()
@@ -104,6 +105,7 @@ void create_all(int n, void *(*entry)(void *))
 {
   int i;
   for (i = 0; i < n; i++) {
+    printf(1, "calling thread_create!\n");
     if (thread_create(&thread[i], entry, (void *)i) != 0) {
       printf(1, "Error creating thread %d\n", i);
       failed();

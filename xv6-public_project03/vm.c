@@ -10,6 +10,9 @@
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
 
+// pj3
+int uvm = 1;
+
 // Set up CPU's kernel segment descriptors.
 // Run once on entry on each CPU.
 void
@@ -150,9 +153,13 @@ void
 switchkvm(void)
 {
   lcr3(V2P(kpgdir));   // switch to the kernel page table
+  
+  // pj3
+  uvm = 1;
 }
 
 // Switch TSS and h/w page table to correspond to process p.
+// pj3
 void
 switchuvm(struct proc *p)
 {
@@ -164,6 +171,7 @@ switchuvm(struct proc *p)
   if(p->pgdir == 0)
     panic("switchuvm: no pgdir");
 
+  // pj3
   pushcli();
   mycpu()->gdt[SEG_TSS] = SEG16(STS_T32A, &mycpu()->ts,
                                 sizeof(mycpu()->ts)-1, 0);
@@ -176,12 +184,15 @@ switchuvm(struct proc *p)
   ltr(SEG_TSS << 3);
   lcr3(V2P(p->pgdir));  // switch to process's address space
   popcli();
+  // pj3
+  uvm = 0;
 }
 
 // pj3
 void
-switcpth(struct proc *p)
+switchpth(struct proc *p)
 {
+  
   struct pthread *pth = mypth();
   if(p == 0)
     panic("switchuvm: no process");
@@ -191,16 +202,24 @@ switcpth(struct proc *p)
     panic("switchuvm: no pgdir");
 
   pushcli();
-  // mycpu()->gdt[SEG_TSS] = SEG16(STS_T32A, &mycpu()->ts,
-                                // sizeof(mycpu()->ts)-1, 0);
-  // mycpu()->gdt[SEG_TSS].s = 0;
-  // mycpu()->ts.ss0 = SEG_KDATA << 3;
-  mycpu()->ts.esp0 = (uint)pth->kstack + KSTACKSIZE;
-  // setting IOPL=0 in eflags *and* iomb beyond the tss segment limit
-  // forbids I/O instructions (e.g., inb and outb) from user space
-  // mycpu()->ts.iomb = (ushort) 0xFFFF;
-  // ltr(SEG_TSS << 3);
-  // lcr3(V2P(p->pgdir));  // switch to process's address space
+  if(uvm)
+  {
+    mycpu()->gdt[SEG_TSS] = SEG16(STS_T32A, &mycpu()->ts,
+                                sizeof(mycpu()->ts)-1, 0);
+    mycpu()->gdt[SEG_TSS].s = 0;
+    mycpu()->ts.ss0 = SEG_KDATA << 3;
+    mycpu()->ts.esp0 = (uint)pth->kstack + KSTACKSIZE;
+    // setting IOPL=0 in eflags *and* iomb beyond the tss segment limit
+    // forbids I/O instructions (e.g., inb and outb) from user space
+    mycpu()->ts.iomb = (ushort) 0xFFFF;
+    ltr(SEG_TSS << 3);
+    lcr3(V2P(p->pgdir));  // switch to process's address space
+    uvm = 0;
+  }
+
+  else
+    mycpu()->ts.esp0 = (uint)pth->kstack + KSTACKSIZE;
+
   popcli();
 }
 

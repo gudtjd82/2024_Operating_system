@@ -39,6 +39,7 @@ trap(struct trapframe *tf)
   if(tf->trapno == T_SYSCALL){
     if(myproc()->killed)
       exit();
+    // pj3
     mypth()->tf = tf;
     syscall();
     if(myproc()->killed)

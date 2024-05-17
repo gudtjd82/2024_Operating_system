@@ -37,3 +37,9 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+
+// proc.c
+// pj3
+int             thread_create(thread_t *, void *(*)(void*), void*);
+void            thread_exit(void *);
+int             thread_join(thread_t thread, void **);

@@ -9,6 +9,8 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+// pj3
+struct pthread;
 
 // bio.c
 void            binit(void);
@@ -123,6 +125,9 @@ void            yield(void);
 // pj3
 struct pthread* mypth(void);
 int             set_proc_state(struct proc *);
+int             thread_create(thread_t *, void *(*)(void*), void*);
+void            thread_exit(void *);
+int             thread_join(thread_t thread, void **);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -189,7 +194,7 @@ void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
 // pj3
-void            switcpth(struct proc *);
+void            switchpth(struct proc *);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

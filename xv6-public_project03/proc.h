@@ -42,7 +42,8 @@ struct pthread {
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
   void *chan;                  // If non-zero, sleeping on chan
-  void *rtval;                 // return value
+  void *retval;                 // return value
+  int tidx;                    // index of thread list in proc
 };
 
 // Per-process state

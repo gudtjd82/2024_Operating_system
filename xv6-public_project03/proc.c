@@ -1,8 +1,8 @@
 #include "types.h"
 #include "defs.h"
 #include "param.h"
-#include "memlayout.h"
 #include "mmu.h"
+#include "memlayout.h"
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
@@ -98,6 +98,7 @@ found:
   p->onTidx = 0;
   pth->state = EMBRYO;
   pth->tid = nextTid++;
+  pth->tidx = 0;
 
   release(&ptable.lock);
 
@@ -238,6 +239,7 @@ fork(void)
   np->ustacks[curproc->onTidx] = np->ustacks[0];
   np->ustacks[0] = temp;
   np->onTidx = 0;
+  npth->tidx = 0;
 
   np->sz = curproc->sz;
   np->parent = curproc;
@@ -327,7 +329,7 @@ wait(void)
 {
   struct proc *p;
   struct pthread *pth;
-  int havekids, pid;
+  int havekids, pid, i;
   struct proc *curproc = myproc();
   
   acquire(&ptable.lock);
@@ -342,8 +344,7 @@ wait(void)
         // Found one.
         pid = p->pid;
         
-        int i = 0;
-        for(pth = p->pth; pth < &(p->pth[NPTH]); pth++)
+        for(pth = p->pth, i = 0; pth < &(p->pth[NPTH]); pth++, i++)
         {
           if(p->kstacks[i] != 0)
           {
@@ -354,7 +355,6 @@ wait(void)
           pth->kstack = 0;
           pth->tid = 0;
           pth->state = UNUSED;
-          i++;
         }
         freevm(p->pgdir);
         p->pid = 0;
@@ -392,6 +392,7 @@ scheduler(void)
   struct proc *p;
   struct pthread *pth;
   struct cpu *c = mycpu();
+  int i;
   c->proc = 0;
   
   for(;;){
@@ -405,17 +406,13 @@ scheduler(void)
       if(p->state != RUNNABLE)
         continue;
 
-      int i = 0;
-      for(pth = p->pth; pth < &(p->pth[NPTH]); pth++)
+      for(pth = p->pth, i = 0; pth < &(p->pth[NPTH]); pth++, i++)
       {
         if(pth->state != RUNNABLE)
-        {
-          i++;
           continue;
-        }
 
         pth->state = RUNNING;
-        p->onTidx = i++;
+        p->onTidx = i;
 
         // schedule되는 첫 proc거나 기존과 다른 proc가 schedule되는 경우
         if(scheduled_proc == 0 || p != scheduled_proc)
@@ -424,22 +421,24 @@ scheduler(void)
           c->proc = p;
           switchuvm(p);
           p->state = RUNNING;
+          swtch(&(c->scheduler), pth->context);
+          switchkvm();
         }
         else    // 기존의 proc에서 thread scheduling
         {
-          switcpth(p);
+          switchpth(p);
+          swtch(&(c->scheduler), pth->context);
+          switchkvm();
         }
-        swtch(&(c->scheduler), pth->context);
-        switchkvm();
       }
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
     release(&ptable.lock);
-
   }
 }
+
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
@@ -709,5 +708,226 @@ set_proc_state(struct proc *p)
   else{
     p->state = UNUSED;
     return UNUSED;
+  }
+}
+
+static struct pthread*
+allocpth(struct proc *p)
+{
+  int i;
+  struct pthread *pth;
+  char *sp;
+
+  for(pth = p->pth, i = 0; pth < &(p->pth[NPTH]); pth++, i++)
+    if(pth->state == UNUSED)
+      goto found;
+  
+  return 0;
+
+found:
+  pth->state = EMBRYO;
+  pth->tid = nextTid++;
+  pth->tidx = i;
+
+  if((pth->kstack = kalloc()) == 0)
+  {
+    pth->state = UNUSED;
+    return 0;
+  }
+  p->kstacks[i] = pth->kstack;
+  sp = pth->kstack + KSTACKSIZE;
+
+  // Leave room for trap frame.
+  sp -= sizeof *pth->tf;
+  pth->tf = (struct trapframe*)sp;
+
+  // Set up new context to start executing at forkret,
+  // which returns to trapret.
+  sp -= 4;
+  *(uint*)sp = (uint)trapret;
+
+  sp -= sizeof *pth->context;
+  pth->context = (struct context*)sp;
+  memset(pth->context, 0, sizeof *pth->context);
+
+  pth->context->eip = (uint)forkret;
+
+  return pth;
+}
+
+uint*
+alloc_ustack(struct proc *p, int tidx)
+{
+  uint *ustack;
+  uint sz;
+
+  // 새로운 ustack 할당 => sz 증가
+  if(*(ustack = &(p->ustacks[tidx])) == 0)
+  {
+    sz = PGROUNDUP(p->sz);
+    if((sz = allocuvm(p->pgdir, sz, sz + PGSIZE)) == 0)
+      return 0;
+
+    clearpteu(p->pgdir, (char*)(sz - PGSIZE));
+    *ustack = sz;
+    p->sz = sz;
+  }
+
+  // 이미 할당된 ustack이 존재 => sz 유지
+  // do notthing
+
+  return ustack;
+}
+
+void
+thread_end(void)
+{
+  struct pthread *pth = mypth();
+
+  acquire(&ptable.lock);
+
+  // wakeup join
+  pth->state = ZOMBIE;
+  wakeup1(pth);
+
+  set_proc_state(myproc());
+  sched();
+  panic("thread zombie exit\n");
+}
+
+int
+thread_create(thread_t *thread, void*(*start_routine)(void *), void *arg)
+{
+  cprintf("thread create called!\n");
+  int tidx;
+  struct pthread *npth;
+  struct proc *curproc = myproc();
+  struct pthread *curpth = mypth();
+  uint sz, sp, *ustack;
+
+  acquire(&ptable.lock);
+  cprintf("thread_create: acquire lock!\n");
+
+  // 1. create new pth
+  if((npth = allocpth(curproc)) == 0)
+    goto bad;
+  cprintf("thread_create: alloc pth!\n");
+
+  *npth->tf = *curpth->tf;
+  
+  // save new thread id
+  *thread = npth->tid;
+  tidx = npth->tidx;
+
+  // 2. set starting routine of the new pth
+  if((ustack = alloc_ustack(curproc, tidx)) == 0)
+    goto bad;
+
+  sz = *(ustack);
+  sp = sz;
+  cprintf("thread_create: alloc_ustack!\nsz:%d\n", sz);
+
+  sp -= 4;
+  *(uint*)sp = (uint)arg;
+
+  // tmp_ustack[3] = sp;
+  // tmp_ustack[4] = 0;
+
+  // // tmp_ustack[0] = 0xffffffff;
+  // tmp_ustack[0] = (uint)thread_end;
+  // tmp_ustack[1] = 1;
+  // tmp_ustack[2] = sp - 8;
+
+  sp -= 4;
+  *(uint*)sp = (uint)thread_end;
+  
+  cprintf("thread_create: set stack!\n");
+
+  npth->tf->eip = (uint)start_routine;
+  cprintf("1\n");
+  npth->tf->esp = sp;
+  cprintf("2\n");
+
+  // intialize return value
+  npth->state = RUNNABLE;
+  npth->retval = 0;
+  cprintf("3\n");
+  release(&ptable.lock);
+  cprintf("thread create complete!\n");
+  return 0;
+  
+bad:
+  npth->kstack = 0;
+  curproc->kstacks[tidx] = 0;
+  npth->state = UNUSED;
+  npth->tid = 0;
+  if(ustack)
+    *ustack = 0;
+  release(&ptable.lock);
+  return -1;
+}
+
+void
+thread_exit(void *retval)
+{
+  struct pthread *pth = mypth();
+
+  acquire(&ptable.lock);
+  pth->retval = retval;
+
+
+  // wakeup join
+  pth->state = ZOMBIE;
+  wakeup1(pth);
+
+  set_proc_state(myproc());
+  sched();
+  panic("thread zombie exit\n");
+}
+
+int
+thread_join(thread_t thread, void **retval)
+{
+  struct proc *p;
+  struct pthread *pth;
+
+  acquire(&ptable.lock);
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if(p->state == SLEEPING || p->state == RUNNABLE)
+    {
+      for(pth = p->pth; pth < &(p->pth[NPTH]); pth++)
+      {
+        if(pth->tid = thread)
+          break;
+      }
+    }
+    if(pth->tid = thread)
+      break;
+  }
+
+  if(pth->tid != thread)
+  {
+    release(&ptable.lock);
+    return -1;
+  }
+
+  for(;;)
+  {
+    if(pth->state == ZOMBIE)
+    {
+      pth->kstack = 0;
+      pth->state = UNUSED;
+      pth->tid = 0;
+      p->ustacks[pth->tidx] = 0;
+
+      *retval = pth->retval;
+      pth->retval = 0;
+
+      release(&ptable.lock);
+      return 0;
+    }
+    sleep(pth, &ptable.lock);
   }
 }
