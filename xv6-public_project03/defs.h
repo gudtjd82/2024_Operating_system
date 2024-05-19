@@ -124,6 +124,7 @@ void            wakeup(void*);
 void            yield(void);
 // pj3
 struct pthread* mypth(void);
+void            init_allpth(struct proc* p, struct pthread *curpth);
 int             set_proc_state(struct proc *);
 int             thread_create(thread_t *, void *(*)(void*), void*);
 void            thread_exit(void *);

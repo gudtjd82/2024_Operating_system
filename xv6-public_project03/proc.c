@@ -228,6 +228,11 @@ fork(void)
     return -1;
   }
 
+  for(i = 0; i < NOFILE; i++)
+    if(curproc->ofile[i])
+      np->ofile[i] = filedup(curproc->ofile[i]);
+  np->cwd = idup(curproc->cwd);
+
   // Copy user stack
   for(int i = 0; i < NPTH; i++)
   {
@@ -248,10 +253,6 @@ fork(void)
   // Clear %eax so that fork returns 0 in the child.
   npth->tf->eax = 0;
 
-  for(i = 0; i < NOFILE; i++)
-    if(curproc->ofile[i])
-      np->ofile[i] = filedup(curproc->ofile[i]);
-  np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
@@ -473,13 +474,10 @@ sched(void)
 void
 yield(void)
 {
-  struct proc *p;
   acquire(&ptable.lock);  //DOC: yieldlock
   // myproc()->state = RUNNABLE;
-  p = myproc();
   mypth()->state = RUNNABLE;
-  p->state = RUNNABLE;
-
+  myproc()->state = RUNNABLE;
   sched();
   release(&ptable.lock);
 }
@@ -565,7 +563,8 @@ wakeup1(void *chan)
         if(pth->state == SLEEPING && pth->chan == chan)
         {
           pth->state = RUNNABLE;
-          p->state = RUNNABLE;
+          if(p->state == SLEEPING)
+            p->state = RUNNABLE;
         }
       }
     }
@@ -595,7 +594,8 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
-      p->state = RUNNABLE;
+      if(p->state == SLEEPING)
+        p->state = RUNNABLE;
       for(pth = p->pth; pth < &(p->pth[NPTH]); pth++)
       {
         if(pth->state == SLEEPING)
@@ -662,6 +662,34 @@ mypth(void)
   popcli();
 
   return pth;
+}
+
+// for exec()
+void
+init_allpth(struct proc* p, struct pthread *curpth)
+{
+  int i = 0;
+  struct pthread *pth;
+
+  acquire(&ptable.lock);
+  for(pth = p->pth; pth < &(p->pth[NPTH]); pth++)
+  {
+    // initialize other thread(UNUSED)
+    if(pth != curpth)
+    {
+      if(pth->kstack != 0 || p->kstacks[i] != 0)
+      {
+        kfree(p->kstacks[i]);
+        p->kstacks[i] = 0;
+        p->ustacks[i] = 0;
+        pth->kstack = 0;
+      }
+      pth->state = UNUSED;
+      pth->tid = 0;
+    }
+    i++;
+  }
+  release(&ptable.lock);
 }
 
 // return proc state
@@ -811,14 +839,6 @@ thread_create(thread_t *thread, void*(*start_routine)(void *), void *arg)
   sp -= 4;
   *(uint*)sp = (uint)arg;
 
-  // tmp_ustack[3] = sp;
-  // tmp_ustack[4] = 0;
-
-  // // tmp_ustack[0] = 0xffffffff;
-  // tmp_ustack[0] = (uint)thread_end;
-  // tmp_ustack[1] = 1;
-  // tmp_ustack[2] = sp - 8;
-
   sp -= 4;
   *(uint*)sp = (uint)thread_exit;
   
@@ -828,7 +848,7 @@ thread_create(thread_t *thread, void*(*start_routine)(void *), void *arg)
 
   *thread = npth->tid;
 
-  // intialize return value
+  // intialize state & return value 
   npth->state = RUNNABLE;
   npth->retval = 0;
   release(&ptable.lock);
@@ -856,10 +876,11 @@ thread_exit(void *retval)
   pth->retval = retval;
 
   // wakeup join
-  pth->state = ZOMBIE;
-
-  set_proc_state(myproc());
   wakeup1((void*)pth->tid);
+
+  pth->state = ZOMBIE;
+  set_proc_state(myproc());
+
   sched();
   panic("thread zombie exit\n");
 }
@@ -869,13 +890,14 @@ thread_join(thread_t thread, void **retval)
 {
   struct proc *p;
   struct pthread *pth = 0;
-  int havepth;
+  int havepth, check_zombie;
 
   acquire(&ptable.lock);
 
   havepth = 0;
   for(;;)
   {
+    check_zombie = 1;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     {
       for(pth = p->pth; pth < &(p->pth[NPTH]); pth++)
@@ -885,6 +907,7 @@ thread_join(thread_t thread, void **retval)
           havepth = 1;
           if(pth->state == ZOMBIE)
           {
+            check_zombie = 1;
             pth->kstack = 0;
             pth->state = UNUSED;
             pth->tid = 0;
@@ -895,8 +918,15 @@ thread_join(thread_t thread, void **retval)
             release(&ptable.lock);
             return 0;
           }
+          else
+          {
+            check_zombie = 0;
+            break;
+          }
         }
       }
+      if(!check_zombie)
+        break;
     }
 
     if(!havepth)

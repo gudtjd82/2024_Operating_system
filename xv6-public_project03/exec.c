@@ -20,7 +20,6 @@ exec(char *path, char **argv)
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
   struct pthread *curpth = mypth();
-  struct pthread *pth;
 
   begin_op();
 
@@ -105,24 +104,7 @@ exec(char *path, char **argv)
   curpth->tf->esp = sp;
   curproc->ustacks[curproc->onTidx] = sz;
 
-  i = 0;
-  for(pth = curproc->pth; pth < &(curproc->pth[NPTH]); pth++)
-  {
-    // initialize other thread(UNUSED)
-    if(pth != curpth)
-    {
-      if(pth->kstack != 0 || curproc->kstacks[i] != 0)
-      {
-        kfree(curproc->kstacks[i]);
-        curproc->kstacks[i] = 0;
-        curproc->ustacks[i] = 0;
-        pth->kstack = 0;
-      }
-      pth->state = UNUSED;
-      pth->tid = 0;
-    }
-    i++;
-  }
+  init_allpth(curproc, curpth);
 
   switchuvm(curproc);
   freevm(oldpgdir);
