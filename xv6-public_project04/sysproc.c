@@ -89,3 +89,10 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// pj4
+int
+sys_countfp(void)
+{
+  return countfp();
+}
