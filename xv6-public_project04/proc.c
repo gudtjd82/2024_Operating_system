@@ -190,15 +190,12 @@ fork(void)
   }
 
   // Copy process state from proc.
-  // if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-  //   kfree(np->kstack);
-  //   np->kstack = 0;
-  //   np->state = UNUSED;
-  //   return -1;
-  // }
-
-  // share the page directory
-  np->pgdir = curproc->pgdir;
+  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+    kfree(np->kstack);
+    np->kstack = 0;
+    np->state = UNUSED;
+    return -1;
+  }
 
   np->sz = curproc->sz;
   np->parent = curproc;
@@ -535,4 +532,12 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+// pj4
+
+int
+countvp(void)
+{
+  return (myproc()->sz) / PGSIZE;
 }

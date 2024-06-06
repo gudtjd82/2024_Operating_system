@@ -39,5 +39,7 @@ void free(void*);
 int atoi(const char*);
 
 // pj4
-// kalloc.c
 int countfp(void);
+int countvp(void);
+int countpp(void);
+int countptp(void);

@@ -78,7 +78,7 @@ trap(struct trapframe *tf)
     lapiceoi();
     break;
   case T_PGFLT:
-    cprintf("page fault!\n");
+    CoW_handler();
     break;
 
   //PAGEBREAK: 13

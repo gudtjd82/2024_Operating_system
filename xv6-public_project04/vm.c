@@ -6,6 +6,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "elf.h"
+#include "spinlock.h"
 
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
@@ -318,7 +319,6 @@ copyuvm(pde_t *pgdir, uint sz)
   pde_t *d;
   pte_t *pte;
   uint pa, i, flags;
-  char *mem;
 
   if((d = setupkvm()) == 0)
     return 0;
@@ -327,16 +327,22 @@ copyuvm(pde_t *pgdir, uint sz)
       panic("copyuvm: pte should exist");
     if(!(*pte & PTE_P))
       panic("copyuvm: page not present");
+    
+    // permission: disable writeable flag
+    *pte &= ~PTE_W;
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto bad;
-    memmove(mem, (char*)P2V(pa), PGSIZE);
-    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
-      kfree(mem);
+    // if((mem = kalloc()) == 0)
+    //   goto bad;
+    // memmove(mem, (char*)P2V(pa), PGSIZE);
+    if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0) {
       goto bad;
     }
+    incr_refc(pa);
   }
+
+  // flush TLB
+  lcr3(V2P(pgdir));
   return d;
 
 bad:
@@ -385,12 +391,59 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
   return 0;
 }
 
+void
+CoW_handler(void)
+{
+  pte_t *pte;
+  uint va, pa;
+  int refc;
+  char *mem;
+
+  va = rcr2();
+  if((pte = walkpgdir(myproc()->pgdir, (void *)va, 0)) == 0)
+    panic("CoW_handler: pte should exist");
+  if(!(*pte & PTE_P))
+      panic("CoW_handler: page not present");
+    
+  pa = PTE_ADDR(*pte);
+  refc = get_refc(pa);
+  
+  if(refc > 1)
+  {
+    if((mem = kalloc()) == 0)
+      panic("CoW_handler: kalloc");
+
+    memmove(mem, (char*)P2V(pa), PGSIZE);
+
+    *pte = V2P(mem) | PTE_P | PTE_W | PTE_U;
+    decr_refc(pa);
+  }
+  else if(refc == 1)
+  {
+    *pte |= PTE_W;
+  }
+
+  // flush TLB
+  lcr3(V2P(myproc()->pgdir));
+}
+//PAGEBREAK!
+// Blank page.
+//PAGEBREAK!
+// Blank page.
+//PAGEBREAK!
+// Blank page.
+
 // pj4
+int 
+countpp(void)
+{
+  int i;
+  pte_t *pte;
+  int cnt = 0;
 
-//PAGEBREAK!
-// Blank page.
-//PAGEBREAK!
-// Blank page.
-//PAGEBREAK!
-// Blank page.
-
+  for(i = 0; i < myproc()->sz; i += PGSIZE){
+    if((pte = walkpgdir(myproc()->pgdir, (void *) i, 0)) != 0)
+      panic("copyuvm: pte should exist");
+    if(!(*pte & PTE_P))
+      panic("copyuvm: page not present");
+}

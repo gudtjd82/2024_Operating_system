@@ -69,7 +69,12 @@ void            kfree(char*);
 void            kinit1(void*, void*);
 void            kinit2(void*, void*);
 // pj4
+void            incr_refc(uint);
+void            decr_refc(uint);
+int             get_refc(uint);
 int             countfp(void);
+int             countpp(void);
+int             countptp(void);
 
 // kbd.c
 void            kbdintr(void);
@@ -122,6 +127,8 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+// pj4
+int             countvp(void);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -188,9 +195,6 @@ void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
 // pj4
-void            incr_refc(uint);
-void            decr_refc(uint);
-int             get_refc(uint);
 void            CoW_handler(void);
 
 // number of elements in fixed-size array
