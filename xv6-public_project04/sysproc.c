@@ -103,14 +103,14 @@ sys_countvp(void)
   return countvp();
 }
 
-// int
-// sys_countpp(void)
-// {
-//   return countpp();
-// }
+int
+sys_countpp(void)
+{
+  return countpp();
+}
 
-// int
-// sys_countptp(void)
-// {
-//   return countptp();
-// }
+int
+sys_countptp(void)
+{
+  return countptp();
+}

@@ -132,8 +132,8 @@ static int (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_countfp] sys_countfp,
 [SYS_countvp] sys_countvp,
-// [SYS_countpp] sys_countpp,
-// [SYS_countptp] sys_countptp,
+[SYS_countpp] sys_countpp,
+[SYS_countptp] sys_countptp,
 };
 
 void

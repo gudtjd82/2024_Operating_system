@@ -434,16 +434,49 @@ CoW_handler(void)
 // Blank page.
 
 // pj4
+int
+countvp(void)
+{
+  return (myproc()->sz)/PGSIZE;
+}
+
 int 
 countpp(void)
 {
-  int i;
-  pte_t *pte;
   int cnt = 0;
+  int sz = myproc()->sz;
+  int i;
+  pde_t *pgdir = myproc()->pgdir;
+  pte_t *pte;
 
-  for(i = 0; i < myproc()->sz; i += PGSIZE){
-    if((pte = walkpgdir(myproc()->pgdir, (void *) i, 0)) != 0)
+  for(i = 0; i < sz; i += PGSIZE){
+    if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
-    if(!(*pte & PTE_P))
-      panic("copyuvm: page not present");
+    if(*pte & PTE_P)
+      cnt++;
+  }
+  return cnt;
 }
+
+int
+countptp(void)
+{
+  pde_t *pde;
+  pde_t *pgdir = myproc()->pgdir;
+  int cnt = 0;
+  
+  // for page directory
+  cnt++;  
+
+  // for page table
+  for(int i = 0; i < NPDENTRIES; i++)
+  {
+    pde = &pgdir[i];
+    if(*pde & PTE_P){
+      cnt++;
+    }
+  }
+
+  return cnt;
+}
+

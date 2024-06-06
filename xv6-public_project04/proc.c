@@ -533,11 +533,3 @@ procdump(void)
     cprintf("\n");
   }
 }
-
-// pj4
-
-int
-countvp(void)
-{
-  return (myproc()->sz) / PGSIZE;
-}
