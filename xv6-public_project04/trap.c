@@ -77,6 +77,7 @@ trap(struct trapframe *tf)
             cpuid(), tf->cs, tf->eip);
     lapiceoi();
     break;
+  // pj4
   case T_PGFLT:
     CoW_handler();
     break;

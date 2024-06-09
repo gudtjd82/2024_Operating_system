@@ -54,6 +54,7 @@ kinit2(void *vstart, void *vend)
 {
   freerange(vstart, vend);
   kmem.use_lock = 1;
+  // pj4
   pgRef.use_lock = 1;
 }
 

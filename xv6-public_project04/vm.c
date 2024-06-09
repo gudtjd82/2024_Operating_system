@@ -328,13 +328,12 @@ copyuvm(pde_t *pgdir, uint sz)
     if(!(*pte & PTE_P))
       panic("copyuvm: page not present");
     
+    // pj4 
     // permission: disable writeable flag
     *pte &= ~PTE_W;
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
-    // if((mem = kalloc()) == 0)
-    //   goto bad;
-    // memmove(mem, (char*)P2V(pa), PGSIZE);
+    
     if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0) {
       goto bad;
     }
@@ -391,6 +390,15 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
   return 0;
 }
 
+//PAGEBREAK!
+// Blank page.
+//PAGEBREAK!
+// Blank page.
+//PAGEBREAK!
+// Blank page.
+
+// pj4
+
 void
 CoW_handler(void)
 {
@@ -426,22 +434,9 @@ CoW_handler(void)
   // flush TLB
   lcr3(V2P(myproc()->pgdir));
 }
-//PAGEBREAK!
-// Blank page.
-//PAGEBREAK!
-// Blank page.
-//PAGEBREAK!
-// Blank page.
 
-// pj4
 int
 countvp(void)
-{
-  return (myproc()->sz)/PGSIZE;
-}
-
-int 
-countpp(void)
 {
   int cnt = 0;
   int sz = myproc()->sz;
@@ -453,8 +448,39 @@ countpp(void)
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
     if(*pte & PTE_P)
+    {
       cnt++;
+    }
   }
+  return cnt;
+}
+
+int
+countpp(void)
+{
+  int cnt = 0;
+  pde_t *pgdir = myproc()->pgdir;
+  pde_t *pde;
+  pte_t *pgtab;
+
+  for(int i = 0; i < NPDENTRIES; i++)
+  {
+    pde = &pgdir[i];
+    if(*pde & PTE_P)
+    {
+      pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
+
+      for(int j = 0; j < NPTENTRIES; j++)
+      {
+        if((pgtab[j] & PTE_P) && (pgtab[j] & PTE_U))
+          cnt++;
+      }
+    }
+  }
+
+  // because of claerpteu() in exec()
+  cnt++;
+
   return cnt;
 }
 
